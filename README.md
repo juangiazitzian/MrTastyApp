@@ -1,6 +1,6 @@
 # Mr Tasty App
 
-Version actual: **0.3.0**
+Version actual: **0.3.2**
 
 MVP para gestion de dos locales de hamburgueseria:
 
@@ -78,6 +78,7 @@ npm run db:seed      # Solo ejecutar el seed
 
 - Carga manual o por foto.
 - Revision y correccion post-OCR.
+- Edicion y borrado de cargas de stock con confirmacion.
 - Historial de snapshots por local.
 
 ### Pedido BLANCALUNA
@@ -143,6 +144,17 @@ Para agregar un provider nuevo, crear una clase que implemente la interfaz y reg
 - [ ] Integracion con WhatsApp para enviar pedidos
 
 ## Changelog
+
+### v0.3.2
+
+- Stock: se agrego edicion de snapshots existentes, incluyendo fecha, fuente, notas y cantidades por producto.
+- Stock: se agrego borrado de cargas con confirmacion desde el ultimo stock y el historial.
+
+### v0.3.1
+
+- BLANCALUNA: se corrigieron los parametros iniciales de ketchup y mayonesa.
+- Ketchup y mayonesa pasan a unidad `bolsa`, stock de seguridad `2`, consumo promedio `2`, consumo semana `1.5` y consumo fin de semana `2.3` por dia.
+- El pedido de miercoles cubre Vie+Sab+Dom, por lo que el consumo esperado de ketchup/mayonesa queda cerca de 7 bolsas para todo el fin de semana.
 
 ### v0.3.0
 

@@ -20,6 +20,11 @@ interface StockItem {
   confidence?: number;
 }
 
+function toInputDate(date: string): string {
+  const match = date.match(/^(\d{4}-\d{2}-\d{2})/);
+  return match ? match[1] : getTodayInputDate();
+}
+
 export default function StockPage() {
   const { addToast } = useToast();
   const [stores, setStores] = useState<{ id: string; name: string }[]>([]);
@@ -28,12 +33,20 @@ export default function StockPage() {
   const [snapshots, setSnapshots] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Carga manual / revisión de foto
   const [showForm, setShowForm] = useState(false);
+  const [editingSnapshotId, setEditingSnapshotId] = useState<string | null>(null);
   const [formSource, setFormSource] = useState<"manual" | "foto">("manual");
   const [formItems, setFormItems] = useState<StockItem[]>([]);
   const [formDate, setFormDate] = useState<string>(getTodayInputDate());
+  const [formNotes, setFormNotes] = useState("");
   const [uploading, setUploading] = useState(false);
+
+  const loadSnapshots = async (storeId: string) => {
+    setLoading(true);
+    const data = await fetch(`/api/stock?storeId=${storeId}`).then((r) => r.json());
+    setSnapshots(Array.isArray(data) ? data : []);
+    setLoading(false);
+  };
 
   useEffect(() => {
     fetch("/api/locales").then((r) => r.json()).then((s) => {
@@ -45,26 +58,23 @@ export default function StockPage() {
 
   useEffect(() => {
     if (!selectedStore) return;
-    setLoading(true);
-    fetch(`/api/stock?storeId=${selectedStore}`)
-      .then((r) => r.json())
-      .then((data) => {
-        setSnapshots(Array.isArray(data) ? data : []);
-        setLoading(false);
-      });
+    loadSnapshots(selectedStore).catch(() => setLoading(false));
   }, [selectedStore]);
 
+  const buildEmptyItems = () =>
+    products.map((p: any) => ({
+      productId: p.id,
+      productName: p.name,
+      quantity: 0,
+      unit: p.unit,
+    }));
+
   const initManualForm = () => {
+    setEditingSnapshotId(null);
     setFormSource("manual");
     setFormDate(getTodayInputDate());
-    setFormItems(
-      products.map((p: any) => ({
-        productId: p.id,
-        productName: p.name,
-        quantity: 0,
-        unit: p.unit,
-      }))
-    );
+    setFormNotes("");
+    setFormItems(buildEmptyItems());
     setShowForm(true);
   };
 
@@ -87,7 +97,6 @@ export default function StockPage() {
         return;
       }
 
-      // Mapear items parseados a productos conocidos
       const parsedItems: StockItem[] = data.parsed.items.map((item: any) => ({
         productId: item.resolvedProductId || "",
         productName: item.resolvedProductName || item.productName,
@@ -96,14 +105,38 @@ export default function StockPage() {
         confidence: item.confidence,
       }));
 
+      setEditingSnapshotId(null);
       setFormSource("foto");
       setFormDate(getTodayInputDate());
+      setFormNotes("");
       setFormItems(parsedItems);
       setShowForm(true);
     } catch {
       addToast("Error procesando imagen", "error");
     }
     setUploading(false);
+    e.target.value = "";
+  };
+
+  const handleEditSnapshot = (snapshot: any) => {
+    const quantityByProduct = new Map<string, number>();
+    for (const item of snapshot.items || []) {
+      quantityByProduct.set(item.productId, item.quantity);
+    }
+
+    setEditingSnapshotId(snapshot.id);
+    setFormSource(snapshot.source === "foto" ? "foto" : "manual");
+    setFormDate(toInputDate(snapshot.date));
+    setFormNotes(snapshot.notes || "");
+    setFormItems(
+      products.map((p: any) => ({
+        productId: p.id,
+        productName: p.name,
+        quantity: quantityByProduct.get(p.id) || 0,
+        unit: p.unit,
+      }))
+    );
+    setShowForm(true);
   };
 
   const handleSaveSnapshot = async () => {
@@ -120,12 +153,14 @@ export default function StockPage() {
 
     try {
       const res = await fetch("/api/stock", {
-        method: "POST",
+        method: editingSnapshotId ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          id: editingSnapshotId,
           storeId: selectedStore,
           source: formSource,
           date: formDate,
+          notes: formNotes || null,
           items: validItems.map((i) => ({
             productId: i.productId,
             quantity: i.quantity,
@@ -134,14 +169,28 @@ export default function StockPage() {
       });
 
       if (res.ok) {
-        addToast("Stock guardado", "success");
+        addToast(editingSnapshotId ? "Stock actualizado" : "Stock guardado", "success");
         setShowForm(false);
-        // Recargar
-        const data = await fetch(`/api/stock?storeId=${selectedStore}`).then((r) => r.json());
-        setSnapshots(Array.isArray(data) ? data : []);
+        setEditingSnapshotId(null);
+        await loadSnapshots(selectedStore);
+      } else {
+        const data = await res.json();
+        addToast(data.error || "Error guardando stock", "error");
       }
     } catch {
       addToast("Error guardando stock", "error");
+    }
+  };
+
+  const handleDeleteSnapshot = async (snapshot: any) => {
+    if (!window.confirm(`Eliminar carga de stock del ${formatDate(snapshot.date)}?`)) return;
+
+    const res = await fetch(`/api/stock?id=${snapshot.id}`, { method: "DELETE" });
+    if (res.ok) {
+      addToast("Carga de stock eliminada", "success");
+      await loadSnapshots(selectedStore);
+    } else {
+      addToast("No se pudo eliminar la carga", "error");
     }
   };
 
@@ -162,7 +211,7 @@ export default function StockPage() {
             </Button>
             <label className="cursor-pointer">
               <Button disabled={uploading} className="pointer-events-none">
-                {uploading ? "Procesando..." : "📷 Desde foto"}
+                {uploading ? "Procesando..." : "Desde foto"}
               </Button>
               <input
                 type="file"
@@ -176,20 +225,26 @@ export default function StockPage() {
         }
       />
 
-      {/* Selector de local */}
       <div className="mb-6">
         <Select value={selectedStore} onChange={(e) => setSelectedStore(e.target.value)}>
           {stores.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
         </Select>
       </div>
 
-      {/* Stock actual (último snapshot) */}
       {snapshots.length > 0 && (
         <Card className="mb-6">
           <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle>Último stock registrado</CardTitle>
-              <Badge variant="info">{formatDate(snapshots[0].date)} — {snapshots[0].source}</Badge>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <CardTitle>Ultimo stock registrado</CardTitle>
+              <div className="flex items-center gap-2 flex-wrap">
+                <Badge variant="info">{formatDate(snapshots[0].date)} - {snapshots[0].source}</Badge>
+                <Button size="sm" variant="outline" onClick={() => handleEditSnapshot(snapshots[0])}>
+                  Editar
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => handleDeleteSnapshot(snapshots[0])}>
+                  Eliminar
+                </Button>
+              </div>
             </div>
           </CardHeader>
           <CardContent className="p-0">
@@ -204,7 +259,7 @@ export default function StockPage() {
               <TableBody>
                 {snapshots[0].items?.map((item: any) => (
                   <TableRow key={item.id}>
-                    <TableCell className="font-medium">{item.product?.name || "—"}</TableCell>
+                    <TableCell className="font-medium">{item.product?.name || "-"}</TableCell>
                     <TableCell className="text-right font-semibold">{item.quantity}</TableCell>
                     <TableCell className="text-sm text-white/40">{item.product?.unit || ""}</TableCell>
                   </TableRow>
@@ -215,7 +270,6 @@ export default function StockPage() {
         </Card>
       )}
 
-      {/* Historial */}
       <Card>
         <CardHeader>
           <CardTitle>Historial de snapshots</CardTitle>
@@ -225,9 +279,8 @@ export default function StockPage() {
             <p className="text-white/30 text-sm">Cargando...</p>
           ) : snapshots.length === 0 ? (
             <div className="text-center py-8">
-              <p className="text-3xl mb-3">📦</p>
               <p className="text-white/40 text-sm">
-                Sin snapshots de stock. Cargá tu primer inventario.
+                Sin snapshots de stock. Carga tu primer inventario.
               </p>
             </div>
           ) : (
@@ -235,18 +288,26 @@ export default function StockPage() {
               {snapshots.map((snap: any) => (
                 <div
                   key={snap.id}
-                  className="flex items-center justify-between p-3 rounded-lg transition-colors"
+                  className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-lg transition-colors"
                   style={{ border: "1px solid hsl(25, 8%, 18%)", background: "hsl(25, 8%, 12%)" }}
                 >
                   <div>
                     <p className="font-medium text-white/80">{formatDate(snap.date)}</p>
                     <p className="text-xs text-white/40 mt-0.5">
-                      {snap.items?.length || 0} productos · Fuente: {snap.source}
+                      {snap.items?.length || 0} productos - Fuente: {snap.source}
                     </p>
                   </div>
-                  <Badge variant={snap.source === "foto" ? "info" : "default"}>
-                    {snap.source}
-                  </Badge>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Badge variant={snap.source === "foto" ? "info" : "default"}>
+                      {snap.source}
+                    </Badge>
+                    <Button size="sm" variant="outline" onClick={() => handleEditSnapshot(snap)}>
+                      Editar
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => handleDeleteSnapshot(snap)}>
+                      Eliminar
+                    </Button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -254,37 +315,59 @@ export default function StockPage() {
         </CardContent>
       </Card>
 
-      {/* Dialog de carga */}
       <Dialog open={showForm} onClose={() => setShowForm(false)}>
         <DialogHeader>
           <DialogTitle>
-            {formSource === "foto" ? "Revisar stock desde foto" : "Carga manual de stock"}
+            {editingSnapshotId
+              ? "Editar carga de stock"
+              : formSource === "foto"
+                ? "Revisar stock desde foto"
+                : "Carga manual de stock"}
           </DialogTitle>
         </DialogHeader>
         <DialogContent>
-          {/* Fecha del snapshot */}
-          <div className="mb-4">
-            <label className="block text-xs font-semibold text-white/50 uppercase tracking-wide mb-1.5">
-              Fecha del stock
-            </label>
-            <Input
-              type="date"
-              value={formDate}
-              onChange={(e) => setFormDate(e.target.value)}
-              className="w-48"
-            />
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+            <div>
+              <label className="block text-xs font-semibold text-white/50 uppercase tracking-wide mb-1.5">
+                Fecha del stock
+              </label>
+              <Input
+                type="date"
+                value={formDate}
+                onChange={(e) => setFormDate(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-white/50 uppercase tracking-wide mb-1.5">
+                Fuente
+              </label>
+              <Select value={formSource} onChange={(e) => setFormSource(e.target.value as "manual" | "foto")}>
+                <option value="manual">Manual</option>
+                <option value="foto">Foto</option>
+              </Select>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-white/50 uppercase tracking-wide mb-1.5">
+                Notas
+              </label>
+              <Input
+                value={formNotes}
+                onChange={(e) => setFormNotes(e.target.value)}
+                placeholder="Opcional"
+              />
+            </div>
           </div>
 
-          {formSource === "foto" && (
+          {formSource === "foto" && !editingSnapshotId && (
             <div className="bg-amber-500/10 border border-amber-500/25 rounded-lg p-3 mb-4 text-sm text-amber-300">
-              ⚠️ Revisá y corregí los datos antes de guardar — el OCR puede cometer errores.
+              Revisa y corrige los datos antes de guardar. El OCR puede cometer errores.
             </div>
           )}
 
           <div className="space-y-2 max-h-96 overflow-y-auto">
             {formItems.map((item, idx) => (
               <div
-                key={idx}
+                key={`${item.productId || item.productName}-${idx}`}
                 className="flex items-center gap-3 p-2 rounded-lg"
                 style={{ border: "1px solid hsl(25, 8%, 18%)", background: "hsl(25, 8%, 12%)" }}
               >
@@ -336,7 +419,7 @@ export default function StockPage() {
             Cancelar
           </Button>
           <Button onClick={handleSaveSnapshot}>
-            Guardar stock
+            {editingSnapshotId ? "Actualizar stock" : "Guardar stock"}
           </Button>
         </DialogFooter>
       </Dialog>

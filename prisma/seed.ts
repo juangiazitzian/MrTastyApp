@@ -66,8 +66,8 @@ async function main() {
     { id: "prod-medallonpollo", name: "Medallón de pollo", unit: "caja", packSize: 1, safetyStock: 2, roundingUnit: 1, aliases: ["M. Pollo", "m. pollo", "medallon pollo", "MEDALLON POLLO", "Med. Pollo"] },
     { id: "prod-sal", name: "Sal", unit: "bolsa", packSize: 1, safetyStock: 1, roundingUnit: 1, aliases: ["sal", "SAL"] },
     { id: "prod-leche", name: "Leche", unit: "unidad", packSize: 1, safetyStock: 2, roundingUnit: 1, aliases: ["leche", "LECHE"] },
-    { id: "prod-ketchup", name: "Ketchup", unit: "unidad", packSize: 1, safetyStock: 5, roundingUnit: 1, aliases: ["ketchup", "KETCHUP", "Kétchup"] },
-    { id: "prod-mayo", name: "Mayonesa", unit: "unidad", packSize: 1, safetyStock: 5, roundingUnit: 1, aliases: ["Mayo", "mayo", "MAYO", "Mayonesa", "MAYONESA"] },
+    { id: "prod-ketchup", name: "Ketchup", unit: "bolsa", packSize: 1, safetyStock: 2, roundingUnit: 1, aliases: ["ketchup", "KETCHUP", "Kétchup"] },
+    { id: "prod-mayo", name: "Mayonesa", unit: "bolsa", packSize: 1, safetyStock: 2, roundingUnit: 1, aliases: ["Mayo", "mayo", "MAYO", "Mayonesa", "MAYONESA"] },
     { id: "prod-mostaza", name: "Mostaza", unit: "unidad", packSize: 1, safetyStock: 2, roundingUnit: 1, aliases: ["mostaza", "MOSTAZA"] },
     { id: "prod-cheddarliq", name: "Cheddar líquido", unit: "unidad", packSize: 1, safetyStock: 2, roundingUnit: 1, aliases: ["Cheddarliq", "cheddarliq", "CHEDDARLIQ", "Cheddar Liq", "cheddar liquido"] },
   ];
@@ -114,8 +114,8 @@ async function main() {
     "prod-medallonpollo": { avg: 2.5, weekday: 2,   weekend: 3.5 },
     "prod-sal":           { avg: 0.2, weekday: 0.2, weekend: 0.2 },
     "prod-leche":         { avg: 1.5, weekday: 1.2, weekend: 2   },
-    "prod-ketchup":       { avg: 9,   weekday: 7,   weekend: 13  },
-    "prod-mayo":          { avg: 9,   weekday: 7,   weekend: 13  },
+    "prod-ketchup":       { avg: 2,   weekday: 1.5, weekend: 2.3 },
+    "prod-mayo":          { avg: 2,   weekday: 1.5, weekend: 2.3 },
     "prod-mostaza":       { avg: 1.2, weekday: 1,   weekend: 1.5 },
     "prod-cheddarliq":    { avg: 1.8, weekday: 1.4, weekend: 2.5 },
   };

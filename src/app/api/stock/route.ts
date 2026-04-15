@@ -65,3 +65,50 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json(snapshot, { status: 201 });
 }
+
+export async function PUT(request: NextRequest) {
+  const body = await request.json();
+
+  if (!body.id) {
+    return NextResponse.json({ error: "ID requerido" }, { status: 400 });
+  }
+
+  if (body.items) {
+    await prisma.stockSnapshotItem.deleteMany({ where: { stockSnapshotId: body.id } });
+    await prisma.stockSnapshotItem.createMany({
+      data: body.items.map((item: any) => ({
+        stockSnapshotId: body.id,
+        productId: item.productId,
+        quantity: item.quantity,
+      })),
+    });
+  }
+
+  const snapshot = await prisma.stockSnapshot.update({
+    where: { id: body.id },
+    data: {
+      storeId: body.storeId,
+      date: body.date ? parseInputDate(body.date) : undefined,
+      source: body.source,
+      notes: body.notes,
+    },
+    include: {
+      store: true,
+      items: { include: { product: true } },
+    },
+  });
+
+  return NextResponse.json(snapshot);
+}
+
+export async function DELETE(request: NextRequest) {
+  const url = new URL(request.url);
+  const id = url.searchParams.get("id");
+
+  if (!id) {
+    return NextResponse.json({ error: "ID requerido" }, { status: 400 });
+  }
+
+  await prisma.stockSnapshot.delete({ where: { id } });
+  return NextResponse.json({ ok: true });
+}
