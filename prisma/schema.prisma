@@ -109,7 +109,7 @@ model DeliveryNote {
   date            DateTime
   total           Float
   currency        String   @default("ARS")
-  status          String   @default("pendiente") // pendiente, validado, rechazado, duplicado
+  status          String   @default("guardado") // legado; ya no hay flujo de aprobacion/rechazo
   imageUrl        String?  // path a la imagen original
   ocrRawData      String?  // JSON con datos crudos del OCR
   notes           String?
@@ -152,6 +152,22 @@ model EerrMapping {
   supplier Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
 
   @@unique([supplierId])
+}
+
+model EerrEntry {
+  id        String   @id @default(cuid())
+  year      Int
+  month     Int
+  storeId   String   @default("all")
+  section   String
+  category  String
+  amount    Float    @default(0)
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([year, month, storeId, section, category])
+  @@index([year, month, storeId])
 }
 
 // ═══════════════════════════════════════

@@ -1,16 +1,15 @@
 "use client";
 
 import React, { useEffect, useState, useCallback } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogHeader, DialogTitle, DialogContent, DialogFooter } from "@/components/ui/dialog";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { PageHeader } from "@/components/layout/page-header";
 import { useToast } from "@/components/ui/toast";
-import { formatCurrency, formatDate, getCurrentYearMonth, getMonthLabel, STATUS_LABELS } from "@/lib/utils";
+import { formatCurrency, formatDate, getCurrentYearMonth, getMonthLabel, getTodayInputDate } from "@/lib/utils";
 
 interface Remito {
   id: string;
@@ -21,12 +20,34 @@ interface Remito {
   date: string;
   total: number;
   currency: string;
-  status: string;
   imageUrl: string | null;
   store: { id: string; name: string };
   supplier: { id: string; name: string } | null;
   items: any[];
 }
+
+interface BatchRow {
+  tempId: string;
+  storeId: string;
+  supplierId: string;
+  supplierRaw: string;
+  noteNumber: string;
+  date: string;
+  total: string;
+  notes: string;
+}
+
+const makeBatchRows = (count: number, storeId: string, date: string): BatchRow[] =>
+  Array.from({ length: count }, (_, index) => ({
+    tempId: `${Date.now()}-${index}-${Math.random().toString(36).slice(2)}`,
+    storeId,
+    supplierId: "",
+    supplierRaw: "",
+    noteNumber: "",
+    date,
+    total: "",
+    notes: "",
+  }));
 
 export default function RemitosPage() {
   const { addToast } = useToast();
@@ -36,27 +57,25 @@ export default function RemitosPage() {
   const [suppliers, setSuppliers] = useState<{ id: string; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Filtros
   const [filterMonth, setFilterMonth] = useState(month);
   const [filterYear, setFilterYear] = useState(year);
   const [filterStore, setFilterStore] = useState("all");
   const [filterSupplier, setFilterSupplier] = useState("all");
-  const [filterStatus, setFilterStatus] = useState("all");
 
-  // Upload
   const [showUpload, setShowUpload] = useState(false);
+  const [showBatch, setShowBatch] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [savingBatch, setSavingBatch] = useState(false);
   const [parsedData, setParsedData] = useState<any>(null);
+  const [batchRows, setBatchRows] = useState<BatchRow[]>([]);
 
-  // Form de revisión
   const [reviewForm, setReviewForm] = useState({
     storeId: "",
     supplierId: "",
     supplierRaw: "",
     noteNumber: "",
-    date: new Date().toISOString().split("T")[0],
+    date: getTodayInputDate(),
     total: 0,
-    status: "pendiente",
     imageUrl: "",
     notes: "",
     items: [] as any[],
@@ -70,15 +89,15 @@ export default function RemitosPage() {
     });
     if (filterStore !== "all") params.set("storeId", filterStore);
     if (filterSupplier !== "all") params.set("supplierId", filterSupplier);
-    if (filterStatus !== "all") params.set("status", filterStatus);
 
     fetch(`/api/remitos?${params}`)
       .then((r) => r.json())
       .then((data) => {
         setRemitos(data);
         setLoading(false);
-      });
-  }, [filterMonth, filterYear, filterStore, filterSupplier, filterStatus]);
+      })
+      .catch(() => setLoading(false));
+  }, [filterMonth, filterYear, filterStore, filterSupplier]);
 
   useEffect(() => {
     fetch("/api/locales").then((r) => r.json()).then(setStores);
@@ -86,6 +105,22 @@ export default function RemitosPage() {
   }, []);
 
   useEffect(() => { loadRemitos(); }, [loadRemitos]);
+
+  const resetReviewForm = (overrides: Partial<typeof reviewForm> = {}) => {
+    setParsedData(null);
+    setReviewForm({
+      storeId: stores[0]?.id || "",
+      supplierId: "",
+      supplierRaw: "",
+      noteNumber: "",
+      date: getTodayInputDate(),
+      total: 0,
+      imageUrl: "",
+      notes: "",
+      items: [],
+      ...overrides,
+    });
+  };
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -112,9 +147,8 @@ export default function RemitosPage() {
         supplierId: data.parsed.resolvedSupplierId || "",
         supplierRaw: data.parsed.supplierName || "",
         noteNumber: data.parsed.noteNumber || "",
-        date: data.parsed.date || new Date().toISOString().split("T")[0],
+        date: data.parsed.date || getTodayInputDate(),
         total: data.parsed.total || 0,
-        status: "pendiente",
         imageUrl: data.imageUrl || "",
         notes: "",
         items: (data.parsed.items || []).map((item: any) => ({
@@ -126,13 +160,14 @@ export default function RemitosPage() {
         })),
       });
       setShowUpload(true);
-    } catch (err) {
+    } catch {
       addToast("Error subiendo archivo", "error");
     }
     setUploading(false);
+    e.target.value = "";
   };
 
-  const handleSaveRemito = async () => {
+  const handleSaveRemito = async (keepOpen = false) => {
     if (!reviewForm.storeId) {
       addToast("Selecciona un local", "error");
       return;
@@ -159,9 +194,18 @@ export default function RemitosPage() {
 
       if (res.ok) {
         addToast("Remito guardado", "success");
-        setShowUpload(false);
-        setParsedData(null);
         loadRemitos();
+        if (keepOpen) {
+          resetReviewForm({
+            storeId: reviewForm.storeId,
+            supplierId: reviewForm.supplierId,
+            supplierRaw: reviewForm.supplierRaw,
+            date: reviewForm.date,
+          });
+        } else {
+          setShowUpload(false);
+          setParsedData(null);
+        }
       }
     } catch {
       addToast("Error guardando remito", "error");
@@ -169,41 +213,83 @@ export default function RemitosPage() {
   };
 
   const handleManualRemito = () => {
-    setParsedData(null);
-    setReviewForm({
-      storeId: stores[0]?.id || "",
-      supplierId: "",
-      supplierRaw: "",
-      noteNumber: "",
-      date: new Date().toISOString().split("T")[0],
-      total: 0,
-      status: "pendiente",
-      imageUrl: "",
-      notes: "",
-      items: [],
-    });
+    resetReviewForm();
     setShowUpload(true);
   };
 
-  const handleStatusChange = async (id: string, newStatus: string) => {
-    await fetch("/api/remitos", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, status: newStatus }),
-    });
-    addToast(`Estado actualizado a ${STATUS_LABELS[newStatus]?.label}`, "success");
-    loadRemitos();
+  const handleBatchRemito = () => {
+    const defaultStoreId = filterStore !== "all" ? filterStore : stores[0]?.id || "";
+    setBatchRows(makeBatchRows(12, defaultStoreId, getTodayInputDate()));
+    setShowBatch(true);
+  };
+
+  const updateBatchRow = (tempId: string, changes: Partial<BatchRow>) => {
+    setBatchRows((rows) => rows.map((row) => (row.tempId === tempId ? { ...row, ...changes } : row)));
+  };
+
+  const handleSaveBatch = async () => {
+    const validRows = batchRows.filter((row) => row.storeId && row.date && Number(row.total) > 0);
+    if (validRows.length === 0) {
+      addToast("Carga al menos una fila con local, fecha y total", "error");
+      return;
+    }
+
+    setSavingBatch(true);
+    try {
+      const res = await fetch("/api/remitos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          remitos: validRows.map((row) => ({
+            storeId: row.storeId,
+            supplierId: row.supplierId || null,
+            supplierRaw: row.supplierRaw || null,
+            noteNumber: row.noteNumber || null,
+            date: row.date,
+            total: Number(row.total),
+            notes: row.notes || null,
+          })),
+        }),
+      });
+      const result = await res.json();
+
+      if (res.ok) {
+        const createdCount = result.created?.length || 0;
+        const duplicateCount = result.duplicates?.length || 0;
+        addToast(`${createdCount} remitos guardados${duplicateCount ? `, ${duplicateCount} duplicados omitidos` : ""}`, "success");
+        setShowBatch(false);
+        loadRemitos();
+      } else {
+        addToast(result.error || "Error guardando remitos", "error");
+      }
+    } catch {
+      addToast("Error guardando remitos", "error");
+    }
+    setSavingBatch(false);
+  };
+
+  const handleDeleteRemito = async (remito: Remito) => {
+    const label = `${remito.supplier?.name || remito.supplierRaw || "Sin proveedor"} - ${formatCurrency(remito.total)}`;
+    if (!window.confirm(`Eliminar remito ${label}?`)) return;
+
+    const res = await fetch(`/api/remitos?id=${remito.id}`, { method: "DELETE" });
+    if (res.ok) {
+      addToast("Remito eliminado", "success");
+      loadRemitos();
+    } else {
+      addToast("No se pudo eliminar el remito", "error");
+    }
   };
 
   const total = remitos.reduce((sum, r) => sum + r.total, 0);
-  const validados = remitos.filter((r) => r.status === "validado");
-  const totalValidados = validados.reduce((sum, r) => sum + r.total, 0);
+  const average = remitos.length > 0 ? total / remitos.length : 0;
+  const suppliersCount = new Set(remitos.map((r) => r.supplier?.id || r.supplierRaw || "sin-proveedor")).size;
 
   return (
     <div>
       <PageHeader
         title="Remitos"
-        description="Carga y revisión de remitos de proveedores"
+        description="Carga rapida, revision y guardado de remitos"
         icon={
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -211,12 +297,15 @@ export default function RemitosPage() {
         }
         actions={
           <div className="flex gap-2">
+            <Button variant="outline" onClick={handleBatchRemito}>
+              Batch
+            </Button>
             <Button variant="outline" onClick={handleManualRemito}>
               + Manual
             </Button>
             <label className="cursor-pointer">
               <Button disabled={uploading} className="pointer-events-none">
-                {uploading ? "Procesando..." : "📷 Subir imagen"}
+                {uploading ? "Procesando..." : "Subir imagen"}
               </Button>
               <input
                 type="file"
@@ -230,7 +319,6 @@ export default function RemitosPage() {
         }
       />
 
-      {/* Filtros */}
       <div className="flex flex-wrap gap-3 mb-4">
         <Select value={filterMonth.toString()} onChange={(e) => setFilterMonth(parseInt(e.target.value))}>
           {Array.from({ length: 12 }, (_, i) => (
@@ -250,15 +338,8 @@ export default function RemitosPage() {
           <option value="all">Todos los proveedores</option>
           {suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
         </Select>
-        <Select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
-          <option value="all">Todos los estados</option>
-          <option value="pendiente">Pendiente</option>
-          <option value="validado">Validado</option>
-          <option value="rechazado">Rechazado</option>
-        </Select>
       </div>
 
-      {/* Resumen rápido */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
         <Card>
           <CardContent className="pt-4">
@@ -269,34 +350,35 @@ export default function RemitosPage() {
         </Card>
         <Card>
           <CardContent className="pt-4">
-            <p className="text-xs text-white/40 uppercase tracking-wide font-medium">Validados</p>
-            <p className="text-xl font-bold text-emerald-400 mt-1">{formatCurrency(totalValidados)}</p>
-            <p className="text-xs text-white/30 mt-0.5">{validados.length} remitos</p>
+            <p className="text-xs text-white/40 uppercase tracking-wide font-medium">Promedio</p>
+            <p className="text-xl font-bold text-emerald-400 mt-1">{formatCurrency(average)}</p>
+            <p className="text-xs text-white/30 mt-0.5">por remito</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-4">
-            <p className="text-xs text-white/40 uppercase tracking-wide font-medium">Pendientes</p>
-            <p className="text-xl font-bold text-amber-400 mt-1">
-              {remitos.filter((r) => r.status === "pendiente").length}
-            </p>
-            <p className="text-xs text-white/30 mt-0.5">para revisar</p>
+            <p className="text-xs text-white/40 uppercase tracking-wide font-medium">Proveedores</p>
+            <p className="text-xl font-bold text-gold-400 mt-1">{suppliersCount}</p>
+            <p className="text-xs text-white/30 mt-0.5">con remitos cargados</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Lista de remitos */}
       <Card>
         <CardContent className="p-0">
           {loading ? (
             <p className="p-8 text-center text-white/30">Cargando...</p>
           ) : remitos.length === 0 ? (
             <div className="p-10 text-center">
-              <p className="text-4xl mb-3">📄</p>
               <p className="text-white/40 mb-4 text-sm">No hay remitos para este periodo</p>
-              <Button variant="outline" size="sm" onClick={handleManualRemito}>
-                Cargar primer remito
-              </Button>
+              <div className="flex justify-center gap-2">
+                <Button variant="outline" size="sm" onClick={handleManualRemito}>
+                  Cargar uno
+                </Button>
+                <Button size="sm" onClick={handleBatchRemito}>
+                  Carga batch
+                </Button>
+              </div>
             </div>
           ) : (
             <Table>
@@ -307,64 +389,30 @@ export default function RemitosPage() {
                   <TableHead>Local</TableHead>
                   <TableHead>Nro</TableHead>
                   <TableHead className="text-right">Total</TableHead>
-                  <TableHead>Estado</TableHead>
-                  <TableHead>Acciones</TableHead>
+                  <TableHead className="text-right">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {remitos.map((r) => {
-                  const st = STATUS_LABELS[r.status] || STATUS_LABELS.pendiente;
-                  return (
-                    <TableRow key={r.id}>
-                      <TableCell className="whitespace-nowrap">{formatDate(r.date)}</TableCell>
-                      <TableCell>{r.supplier?.name || r.supplierRaw || "—"}</TableCell>
-                      <TableCell className="text-sm">{r.store.name}</TableCell>
-                      <TableCell className="text-sm text-white/30">{r.noteNumber || "—"}</TableCell>
-                      <TableCell className="text-right font-medium">{formatCurrency(r.total)}</TableCell>
-                      <TableCell>
-                        <span className={`badge ${st.color}`}>{st.label}</span>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex gap-1">
-                          {r.status === "pendiente" && (
-                            <>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => handleStatusChange(r.id, "validado")}
-                              >
-                                ✓
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => handleStatusChange(r.id, "rechazado")}
-                              >
-                                ✗
-                              </Button>
-                            </>
-                          )}
-                          {r.status === "rechazado" && (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => handleStatusChange(r.id, "pendiente")}
-                            >
-                              Restaurar
-                            </Button>
-                          )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
+                {remitos.map((r) => (
+                  <TableRow key={r.id}>
+                    <TableCell className="whitespace-nowrap">{formatDate(r.date)}</TableCell>
+                    <TableCell>{r.supplier?.name || r.supplierRaw || "-"}</TableCell>
+                    <TableCell className="text-sm">{r.store.name}</TableCell>
+                    <TableCell className="text-sm text-white/30">{r.noteNumber || "-"}</TableCell>
+                    <TableCell className="text-right font-medium">{formatCurrency(r.total)}</TableCell>
+                    <TableCell className="text-right">
+                      <Button size="sm" variant="ghost" onClick={() => handleDeleteRemito(r)}>
+                        Eliminar
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
               </TableBody>
             </Table>
           )}
         </CardContent>
       </Card>
 
-      {/* Dialog de Upload / Revisión */}
       <Dialog open={showUpload} onClose={() => setShowUpload(false)}>
         <DialogHeader>
           <DialogTitle>
@@ -374,7 +422,7 @@ export default function RemitosPage() {
         <DialogContent>
           {parsedData && parsedData.confidence < 0.7 && (
             <div className="bg-amber-500/10 border border-amber-500/25 rounded-lg p-3 mb-4 text-sm text-amber-300">
-              ⚠️ Confianza del OCR baja ({Math.round(parsedData.confidence * 100)}%) — revisá bien los datos antes de guardar.
+              Confianza del OCR baja ({Math.round(parsedData.confidence * 100)}%). Revisa los datos antes de guardar.
             </div>
           )}
 
@@ -399,10 +447,8 @@ export default function RemitosPage() {
                 <option value="">Seleccionar...</option>
                 {suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
               </Select>
-              {reviewForm.supplierRaw && reviewForm.supplierRaw !== "" && (
-                <p className="text-xs text-white/30 mt-1">
-                  Detectado: &ldquo;{reviewForm.supplierRaw}&rdquo;
-                </p>
+              {reviewForm.supplierRaw && (
+                <p className="text-xs text-white/30 mt-1">Detectado: &ldquo;{reviewForm.supplierRaw}&rdquo;</p>
               )}
             </div>
 
@@ -445,7 +491,6 @@ export default function RemitosPage() {
             </div>
           </div>
 
-          {/* Items detectados */}
           {reviewForm.items.length > 0 && (
             <div className="mt-4">
               <h4 className="text-xs font-semibold text-white/40 uppercase tracking-wide mb-2">Items detectados</h4>
@@ -513,8 +558,86 @@ export default function RemitosPage() {
           <Button variant="outline" onClick={() => setShowUpload(false)}>
             Cancelar
           </Button>
-          <Button onClick={handleSaveRemito}>
+          {!parsedData && (
+            <Button variant="outline" onClick={() => handleSaveRemito(true)}>
+              Guardar y nuevo
+            </Button>
+          )}
+          <Button onClick={() => handleSaveRemito(false)}>
             Guardar remito
+          </Button>
+        </DialogFooter>
+      </Dialog>
+
+      <Dialog open={showBatch} onClose={() => setShowBatch(false)}>
+        <DialogHeader>
+          <DialogTitle>Carga batch de remitos</DialogTitle>
+        </DialogHeader>
+        <DialogContent>
+          <p className="text-sm text-white/45 mb-4">
+            Completa solo las filas que necesites. Se guardan las filas con local, fecha y total.
+          </p>
+          <div className="overflow-x-auto rounded-lg" style={{ border: "1px solid hsl(25, 8%, 18%)" }}>
+            <table className="w-full min-w-[900px] text-sm">
+              <thead style={{ background: "hsl(25, 8%, 8%)" }}>
+                <tr>
+                  <th className="px-2 py-2 text-left text-xs text-white/30 font-semibold uppercase">Fecha</th>
+                  <th className="px-2 py-2 text-left text-xs text-white/30 font-semibold uppercase">Local</th>
+                  <th className="px-2 py-2 text-left text-xs text-white/30 font-semibold uppercase">Proveedor</th>
+                  <th className="px-2 py-2 text-left text-xs text-white/30 font-semibold uppercase">Nro</th>
+                  <th className="px-2 py-2 text-right text-xs text-white/30 font-semibold uppercase">Total</th>
+                  <th className="px-2 py-2 text-left text-xs text-white/30 font-semibold uppercase">Notas</th>
+                </tr>
+              </thead>
+              <tbody style={{ background: "hsl(25, 10%, 10%)" }}>
+                {batchRows.map((row) => (
+                  <tr key={row.tempId} className="border-t" style={{ borderColor: "hsl(25, 8%, 17%)" }}>
+                    <td className="px-2 py-2">
+                      <Input type="date" value={row.date} onChange={(e) => updateBatchRow(row.tempId, { date: e.target.value })} className="h-8" />
+                    </td>
+                    <td className="px-2 py-2">
+                      <Select value={row.storeId} onChange={(e) => updateBatchRow(row.tempId, { storeId: e.target.value })} className="h-8">
+                        <option value="">Local...</option>
+                        {stores.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                      </Select>
+                    </td>
+                    <td className="px-2 py-2">
+                      <Select value={row.supplierId} onChange={(e) => updateBatchRow(row.tempId, { supplierId: e.target.value })} className="h-8">
+                        <option value="">Proveedor...</option>
+                        {suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                      </Select>
+                    </td>
+                    <td className="px-2 py-2">
+                      <Input value={row.noteNumber} onChange={(e) => updateBatchRow(row.tempId, { noteNumber: e.target.value })} className="h-8" />
+                    </td>
+                    <td className="px-2 py-2">
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={row.total}
+                        onChange={(e) => updateBatchRow(row.tempId, { total: e.target.value })}
+                        className="h-8 text-right"
+                        placeholder="0.00"
+                      />
+                    </td>
+                    <td className="px-2 py-2">
+                      <Input value={row.notes} onChange={(e) => updateBatchRow(row.tempId, { notes: e.target.value })} className="h-8" />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </DialogContent>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setBatchRows((rows) => [...rows, ...makeBatchRows(10, filterStore !== "all" ? filterStore : stores[0]?.id || "", getTodayInputDate())])}>
+            Agregar 10 filas
+          </Button>
+          <Button variant="outline" onClick={() => setShowBatch(false)}>
+            Cancelar
+          </Button>
+          <Button onClick={handleSaveBatch} disabled={savingBatch}>
+            {savingBatch ? "Guardando..." : "Guardar batch"}
           </Button>
         </DialogFooter>
       </Dialog>

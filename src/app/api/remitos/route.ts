@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { parseInputDate } from "@/lib/utils";
 
 export async function GET(request: NextRequest) {
   const url = new URL(request.url);
@@ -7,13 +8,11 @@ export async function GET(request: NextRequest) {
   const supplierId = url.searchParams.get("supplierId");
   const month = url.searchParams.get("month");
   const year = url.searchParams.get("year");
-  const status = url.searchParams.get("status");
 
   const where: any = {};
 
   if (storeId && storeId !== "all") where.storeId = storeId;
   if (supplierId && supplierId !== "all") where.supplierId = supplierId;
-  if (status && status !== "all") where.status = status;
 
   if (month && year) {
     const startDate = new Date(parseInt(year), parseInt(month) - 1, 1);
@@ -38,35 +37,61 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   const body = await request.json();
+  const isBatch = Array.isArray(body.remitos);
+  const inputs = isBatch ? body.remitos : [body];
+  const created = [];
+  const duplicates = [];
 
+  for (const input of inputs) {
+    const duplicate = await findDuplicate(input);
+    if (duplicate) {
+      if (!isBatch) {
+        return NextResponse.json(
+          { error: "Posible duplicado detectado", existingId: duplicate.id },
+          { status: 409 }
+        );
+      }
+      duplicates.push({ input, existingId: duplicate.id });
+      continue;
+    }
+
+    const remito = await createRemito(input);
+    created.push(remito);
+  }
+
+  if (isBatch) {
+    return NextResponse.json({ created, duplicates }, { status: 201 });
+  }
+
+  return NextResponse.json(created[0], { status: 201 });
+}
+
+async function findDuplicate(body: any) {
   // Check deduplication
   if (body.supplierId && body.noteNumber && body.date) {
-    const existing = await prisma.deliveryNote.findFirst({
+    return prisma.deliveryNote.findFirst({
       where: {
         supplierId: body.supplierId,
         noteNumber: body.noteNumber,
-        date: new Date(body.date),
+        date: parseInputDate(body.date),
         storeId: body.storeId,
       },
     });
-    if (existing) {
-      return NextResponse.json(
-        { error: "Posible duplicado detectado", existingId: existing.id },
-        { status: 409 }
-      );
-    }
   }
+  return null;
+}
 
-  const remito = await prisma.deliveryNote.create({
+async function createRemito(body: any) {
+  return prisma.deliveryNote.create({
     data: {
       storeId: body.storeId,
       supplierId: body.supplierId || null,
       supplierRaw: body.supplierRaw || null,
       noteNumber: body.noteNumber || null,
-      date: new Date(body.date),
+      date: parseInputDate(body.date),
       total: body.total,
       currency: body.currency || "ARS",
-      status: body.status || "pendiente",
+      status: body.status || "guardado",
       imageUrl: body.imageUrl || null,
       ocrRawData: body.ocrRawData ? JSON.stringify(body.ocrRawData) : null,
       notes: body.notes || null,
@@ -88,8 +113,6 @@ export async function POST(request: NextRequest) {
       items: true,
     },
   });
-
-  return NextResponse.json(remito, { status: 201 });
 }
 
 export async function PUT(request: NextRequest) {
@@ -119,7 +142,7 @@ export async function PUT(request: NextRequest) {
       supplierId: body.supplierId,
       supplierRaw: body.supplierRaw,
       noteNumber: body.noteNumber,
-      date: body.date ? new Date(body.date) : undefined,
+      date: body.date ? parseInputDate(body.date) : undefined,
       total: body.total,
       currency: body.currency,
       status: body.status,

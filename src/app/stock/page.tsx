@@ -10,7 +10,7 @@ import { Dialog, DialogHeader, DialogTitle, DialogContent, DialogFooter } from "
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { PageHeader } from "@/components/layout/page-header";
 import { useToast } from "@/components/ui/toast";
-import { formatDate } from "@/lib/utils";
+import { formatDate, getTodayInputDate } from "@/lib/utils";
 
 interface StockItem {
   productId: string;
@@ -32,7 +32,7 @@ export default function StockPage() {
   const [showForm, setShowForm] = useState(false);
   const [formSource, setFormSource] = useState<"manual" | "foto">("manual");
   const [formItems, setFormItems] = useState<StockItem[]>([]);
-  const [formDate, setFormDate] = useState<string>(new Date().toISOString().split("T")[0]);
+  const [formDate, setFormDate] = useState<string>(getTodayInputDate());
   const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
@@ -56,7 +56,7 @@ export default function StockPage() {
 
   const initManualForm = () => {
     setFormSource("manual");
-    setFormDate(new Date().toISOString().split("T")[0]);
+    setFormDate(getTodayInputDate());
     setFormItems(
       products.map((p: any) => ({
         productId: p.id,
@@ -97,7 +97,7 @@ export default function StockPage() {
       }));
 
       setFormSource("foto");
-      setFormDate(new Date().toISOString().split("T")[0]);
+      setFormDate(getTodayInputDate());
       setFormItems(parsedItems);
       setShowForm(true);
     } catch {

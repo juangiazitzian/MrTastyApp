@@ -16,7 +16,6 @@ export async function GET(request: NextRequest) {
 
   const where: any = {
     date: { gte: startDate, lte: endDate },
-    status: { in: ["validado", "pendiente"] },
   };
 
   if (storeId && storeId !== "all") {

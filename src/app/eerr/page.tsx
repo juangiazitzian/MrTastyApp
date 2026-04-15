@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { PageHeader } from "@/components/layout/page-header";
@@ -15,13 +16,29 @@ interface EerrItem {
   total: number;
   count: number;
   suppliers: string[];
+  source: "manual" | "remitos" | "mixto";
+}
+
+interface EerrSection {
+  name: string;
+  kind: "income" | "expense";
+  total: number;
+  items: EerrItem[];
 }
 
 interface EerrData {
   month: number;
   year: number;
-  grandTotal: number;
-  items: EerrItem[];
+  storeId: string;
+  sections: EerrSection[];
+  salesTotal: number;
+  expenseTotal: number;
+  profit: number;
+  profitPercentage: number;
+}
+
+function rowKey(section: string, category: string) {
+  return `${section}:::${category}`;
 }
 
 export default function EerrPage() {
@@ -32,7 +49,9 @@ export default function EerrPage() {
   const [storeId, setStoreId] = useState("all");
   const [stores, setStores] = useState<{ id: string; name: string }[]>([]);
   const [data, setData] = useState<EerrData | null>(null);
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     fetch("/api/locales").then((r) => r.json()).then(setStores);
@@ -50,59 +69,95 @@ export default function EerrPage() {
       .then((r) => r.json())
       .then((d) => {
         setData(d);
+        const nextDrafts: Record<string, string> = {};
+        for (const section of d.sections || []) {
+          for (const item of section.items || []) {
+            if (item.source === "manual") {
+              nextDrafts[rowKey(section.name, item.category)] = item.total ? String(item.total) : "";
+            }
+          }
+        }
+        setDrafts(nextDrafts);
         setLoading(false);
       })
       .catch(() => setLoading(false));
   }, [selectedMonth, selectedYear, storeId]);
 
   const handleExportCSV = () => {
-    const params = new URLSearchParams({
-      month: selectedMonth.toString(),
-      year: selectedYear.toString(),
-      format: "csv",
-    });
-    if (storeId !== "all") params.set("storeId", storeId);
-    window.open(`/api/eerr/export?${params}`, "_blank");
-    addToast("Exportando CSV...", "info");
-  };
+    if (!data) return;
 
-  const handleExportJSON = async () => {
-    const params = new URLSearchParams({
-      month: selectedMonth.toString(),
-      year: selectedYear.toString(),
-      format: "json",
-    });
-    if (storeId !== "all") params.set("storeId", storeId);
-
-    const res = await fetch(`/api/eerr/export?${params}`);
-    const jsonData = await res.json();
-
-    // Generar Excel-like CSV con BOM para que Excel lo abra bien
-    let csv = "\uFEFF"; // BOM
-    csv += `Estado de Resultados - ${jsonData.monthLabel} ${jsonData.year}\n`;
-    csv += `Seccion: MERCADERIA\n\n`;
-    csv += `Categoria,Monto\n`;
-    for (const item of jsonData.eerrData) {
-      csv += `"${item.category}",${item.total.toFixed(2)}\n`;
+    let csv = "\uFEFF";
+    csv += `Estado de Resultados,${getMonthLabel(selectedYear, selectedMonth)}\n`;
+    csv += `Seccion,Categoria,Monto,Porcentaje sobre ventas,Origen\n`;
+    for (const section of data.sections) {
+      for (const item of section.items) {
+        const pct = data.salesTotal > 0 ? item.total / data.salesTotal : 0;
+        csv += `"${section.name}","${item.category}",${item.total.toFixed(2)},${pct.toFixed(4)},"${item.source}"\n`;
+      }
+      const sectionPct = data.salesTotal > 0 ? section.total / data.salesTotal : 0;
+      csv += `"${section.name}","SubTotal",${section.total.toFixed(2)},${sectionPct.toFixed(4)},"subtotal"\n`;
     }
-    const total = jsonData.eerrData.reduce((s: number, i: any) => s + i.total, 0);
-    csv += `\nTOTAL MERCADERIA,${total.toFixed(2)}\n`;
+    csv += `\n"RESULTADO","Ventas",${data.salesTotal.toFixed(2)},1,\n`;
+    csv += `"RESULTADO","Gastos",${data.expenseTotal.toFixed(2)},${(data.salesTotal > 0 ? data.expenseTotal / data.salesTotal : 0).toFixed(4)},\n`;
+    csv += `"RESULTADO","Utilidad",${data.profit.toFixed(2)},${data.profitPercentage.toFixed(4)},\n`;
 
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `EERR_MERCADERIA_${jsonData.monthLabel}_${jsonData.year}.csv`;
+    a.download = `EERR_${selectedYear}_${String(selectedMonth).padStart(2, "0")}.csv`;
     a.click();
     URL.revokeObjectURL(url);
-    addToast("Archivo descargado", "success");
+    addToast("CSV descargado", "success");
+  };
+
+  const handleSaveEntries = async () => {
+    if (!data) return;
+
+    const entries = data.sections.flatMap((section) =>
+      section.items
+        .filter((item) => item.source === "manual")
+        .map((item) => ({
+          year: selectedYear,
+          month: selectedMonth,
+          storeId,
+          section: section.name,
+          category: item.category,
+          amount: Number(drafts[rowKey(section.name, item.category)] || 0),
+        }))
+    );
+
+    setSaving(true);
+    try {
+      const res = await fetch("/api/eerr", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "entries", entries }),
+      });
+
+      if (res.ok) {
+        addToast("EERR guardado", "success");
+        const params = new URLSearchParams({
+          month: selectedMonth.toString(),
+          year: selectedYear.toString(),
+        });
+        if (storeId !== "all") params.set("storeId", storeId);
+        const nextData = await fetch(`/api/eerr?${params}`).then((r) => r.json());
+        setData(nextData);
+      } else {
+        addToast("No se pudo guardar el EERR", "error");
+      }
+    } catch {
+      addToast("Error guardando EERR", "error");
+    }
+    setSaving(false);
   };
 
   return (
     <div>
       <PageHeader
-        title="EERR — Mercadería"
-        description="Resumen listo para completar el Estado de Resultados"
+        title="EERR completo"
+        description="Estado de Resultados mensual con remitos y cargas manuales"
         icon={
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
@@ -110,17 +165,16 @@ export default function EerrPage() {
         }
         actions={
           <div className="flex gap-2">
-            <Button variant="outline" onClick={handleExportCSV}>
+            <Button variant="outline" onClick={handleExportCSV} disabled={!data}>
               Exportar CSV
             </Button>
-            <Button onClick={handleExportJSON}>
-              Exportar para EERR
+            <Button onClick={handleSaveEntries} disabled={saving || !data}>
+              {saving ? "Guardando..." : "Guardar EERR"}
             </Button>
           </div>
         }
       />
 
-      {/* Filtros */}
       <div className="flex flex-wrap gap-3 mb-6">
         <Select value={selectedMonth.toString()} onChange={(e) => setSelectedMonth(parseInt(e.target.value))}>
           {Array.from({ length: 12 }, (_, i) => (
@@ -138,90 +192,131 @@ export default function EerrPage() {
         </Select>
       </div>
 
-      {/* Vista EERR */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle>MERCADERIA — {getMonthLabel(selectedYear, selectedMonth)}</CardTitle>
-            {data && (
-              <span className="text-lg font-bold text-brand-400">
-                {formatCurrency(data.grandTotal)}
-              </span>
-            )}
-          </div>
-        </CardHeader>
-        <CardContent className="p-0">
-          {loading ? (
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-6">
+        <Card>
+          <CardContent className="pt-4">
+            <p className="text-xs text-white/40 uppercase tracking-wide font-medium">Ventas</p>
+            <p className="text-xl font-bold text-emerald-400 mt-1">{formatCurrency(data?.salesTotal || 0)}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4">
+            <p className="text-xs text-white/40 uppercase tracking-wide font-medium">Gastos</p>
+            <p className="text-xl font-bold text-brand-400 mt-1">{formatCurrency(data?.expenseTotal || 0)}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4">
+            <p className="text-xs text-white/40 uppercase tracking-wide font-medium">Utilidad</p>
+            <p className={`text-xl font-bold mt-1 ${(data?.profit || 0) >= 0 ? "text-gold-400" : "text-red-400"}`}>
+              {formatCurrency(data?.profit || 0)}
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4">
+            <p className="text-xs text-white/40 uppercase tracking-wide font-medium">Porcentaje</p>
+            <p className={`text-xl font-bold mt-1 ${(data?.profitPercentage || 0) >= 0 ? "text-gold-400" : "text-red-400"}`}>
+              {((data?.profitPercentage || 0) * 100).toFixed(1)}%
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {loading ? (
+        <Card>
+          <CardContent>
             <p className="p-8 text-center text-white/30">Cargando...</p>
-          ) : !data?.items?.length ? (
-            <div className="p-10 text-center">
-              <p className="text-4xl mb-3">📊</p>
-              <p className="text-white/40 text-sm">
-                Sin datos para este periodo. Cargá remitos primero.
-              </p>
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Categoría EERR</TableHead>
-                  <TableHead>Proveedores</TableHead>
-                  <TableHead className="text-center">Remitos</TableHead>
-                  <TableHead className="text-right">Total</TableHead>
-                  <TableHead className="text-right">%</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {data.items.map((item) => {
-                  const pct = data.grandTotal > 0 ? (item.total / data.grandTotal) * 100 : 0;
-                  return (
-                    <TableRow key={item.category}>
-                      <TableCell className="font-semibold text-white/90">{item.category}</TableCell>
-                      <TableCell className="text-sm text-white/40">
-                        {item.suppliers.join(", ")}
+          </CardContent>
+        </Card>
+      ) : !data?.sections?.length ? (
+        <Card>
+          <CardContent>
+            <p className="p-8 text-center text-white/30">Sin datos para este periodo.</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-5">
+          {data.sections.map((section) => (
+            <Card key={section.name}>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle>{section.name}</CardTitle>
+                  <span className="text-lg font-bold text-brand-400">{formatCurrency(section.total)}</span>
+                </div>
+              </CardHeader>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Concepto</TableHead>
+                      <TableHead>Origen</TableHead>
+                      <TableHead className="text-center">Remitos</TableHead>
+                      <TableHead className="text-right">Monto</TableHead>
+                      <TableHead className="text-right">% ventas</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {section.items.map((item) => {
+                      const key = rowKey(section.name, item.category);
+                      const pct = data.salesTotal > 0 ? (item.total / data.salesTotal) * 100 : 0;
+                      const isManual = item.source === "manual";
+
+                      return (
+                        <TableRow key={key}>
+                          <TableCell className="font-medium text-white/85">
+                            {item.category}
+                            {item.suppliers.length > 0 && (
+                              <p className="text-xs text-white/30 mt-0.5">{item.suppliers.join(", ")}</p>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <span className={`badge ${isManual ? "bg-blue-100 text-blue-800" : "bg-green-100 text-green-800"}`}>
+                              {isManual ? "Manual" : item.source === "mixto" ? "Mixto" : "Remitos"}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-center text-white/50">{item.count || "-"}</TableCell>
+                          <TableCell className="text-right">
+                            {isManual ? (
+                              <Input
+                                type="number"
+                                step="0.01"
+                                value={drafts[key] || ""}
+                                onChange={(e) => setDrafts((current) => ({ ...current, [key]: e.target.value }))}
+                                className="w-32 text-right inline-block"
+                                placeholder="0.00"
+                              />
+                            ) : (
+                              <span className="font-bold text-brand-400">{formatCurrency(item.total)}</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right text-white/40">{pct.toFixed(1)}%</TableCell>
+                        </TableRow>
+                      );
+                    })}
+                    <TableRow>
+                      <TableCell colSpan={3} className="font-bold text-white uppercase tracking-wide text-xs">
+                        SubTotal
                       </TableCell>
-                      <TableCell className="text-center text-white/50">{item.count}</TableCell>
-                      <TableCell className="text-right font-bold text-brand-400">
-                        {formatCurrency(item.total)}
+                      <TableCell className="text-right text-lg font-bold text-brand-400">
+                        {formatCurrency(section.total)}
                       </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <div className="w-16 h-1 rounded-full bg-white/5 overflow-hidden">
-                            <div
-                              className="h-full rounded-full bg-gradient-to-r from-brand-500 to-gold-500"
-                              style={{ width: `${pct}%` }}
-                            />
-                          </div>
-                          <span className="text-xs text-white/40 w-10 text-right">
-                            {pct.toFixed(1)}%
-                          </span>
-                        </div>
+                      <TableCell className="text-right text-white/40 text-xs">
+                        {data.salesTotal > 0 ? ((section.total / data.salesTotal) * 100).toFixed(1) : "0.0"}%
                       </TableCell>
                     </TableRow>
-                  );
-                })}
-                <TableRow>
-                  <TableCell colSpan={3} className="font-bold text-white uppercase tracking-wide text-xs">
-                    Total Mercadería
-                  </TableCell>
-                  <TableCell className="text-right text-lg font-bold text-brand-400">
-                    {formatCurrency(data.grandTotal)}
-                  </TableCell>
-                  <TableCell className="text-right text-white/40 text-xs">100%</TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
 
-      {/* Info */}
       <div className="mt-6 rounded-xl border border-sky-500/20 bg-sky-500/8 p-4 text-sm text-sky-300/80">
-        <p className="font-semibold text-sky-300 mb-1">💡 Cómo usar esta vista</p>
+        <p className="font-semibold text-sky-300 mb-1">Uso</p>
         <p className="text-sky-400/70">
-          Los totales se agrupan automáticamente según el mapeo proveedor → categoría EERR.
-          Podés ajustar los mapeos desde Configuración → Proveedores.
-          Usá &ldquo;Exportar para EERR&rdquo; para descargar un CSV listo para copiar a tu planilla.
+          Mercaderia se completa desde remitos. Ventas, sueldos, gastos, impuestos y mantenimiento se cargan manualmente por mes y por local/consolidado.
         </p>
       </div>
     </div>

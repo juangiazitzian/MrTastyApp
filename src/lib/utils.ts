@@ -13,13 +13,33 @@ export function formatCurrency(amount: number, currency = "ARS"): string {
   }).format(amount);
 }
 
-export function formatDate(date: Date | string): string {
+function padDatePart(value: number): string {
+  return value.toString().padStart(2, "0");
+}
+
+function dateParts(date: Date | string): { day: number; month: number; year: number } {
+  if (typeof date === "string") {
+    const match = date.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (match) {
+      return {
+        year: Number(match[1]),
+        month: Number(match[2]),
+        day: Number(match[3]),
+      };
+    }
+  }
+
   const d = typeof date === "string" ? new Date(date) : date;
-  return new Intl.DateTimeFormat("es-AR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  }).format(d);
+  return {
+    day: d.getDate(),
+    month: d.getMonth() + 1,
+    year: d.getFullYear(),
+  };
+}
+
+export function formatDate(date: Date | string): string {
+  const parts = dateParts(date);
+  return `${padDatePart(parts.day)}/${padDatePart(parts.month)}/${parts.year}`;
 }
 
 export function formatDateShort(date: Date | string): string {
@@ -55,6 +75,20 @@ export function getCoverageDays(
 export function roundUp(value: number, roundingUnit: number): number {
   if (roundingUnit <= 0) return value;
   return Math.ceil(value / roundingUnit) * roundingUnit;
+}
+
+export function getTodayInputDate(): string {
+  const now = new Date();
+  return `${now.getFullYear()}-${padDatePart(now.getMonth() + 1)}-${padDatePart(now.getDate())}`;
+}
+
+export function parseInputDate(date: string | Date): Date {
+  if (date instanceof Date) return date;
+  const match = date.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (match) {
+    return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]), 12);
+  }
+  return new Date(date);
 }
 
 export const STATUS_LABELS: Record<string, { label: string; color: string }> = {

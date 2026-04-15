@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { formatDate } from "@/lib/utils";
 
 export async function GET(request: NextRequest) {
   const url = new URL(request.url);
@@ -17,7 +18,6 @@ export async function GET(request: NextRequest) {
 
   const where: any = {
     date: { gte: startDate, lte: endDate },
-    status: { in: ["validado", "pendiente"] },
   };
 
   if (storeId && storeId !== "all") {
@@ -63,7 +63,7 @@ export async function GET(request: NextRequest) {
     csv += `\n\nDetalle de Remitos\n`;
     csv += `Fecha,Proveedor,Local,Nro Remito,Total,Estado\n`;
     for (const r of remitos) {
-      const date = new Date(r.date).toLocaleDateString("es-AR");
+      const date = formatDate(r.date);
       csv += `${date},"${r.supplier?.name || r.supplierRaw || ""}","${r.store.name}","${r.noteNumber || ""}",${r.total.toFixed(2)},${r.status}\n`;
     }
 
@@ -84,7 +84,7 @@ export async function GET(request: NextRequest) {
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([category, total]) => ({ category, total })),
     detalle: remitos.map((r) => ({
-      fecha: new Date(r.date).toLocaleDateString("es-AR"),
+      fecha: formatDate(r.date),
       proveedor: r.supplier?.name || r.supplierRaw || "",
       local: r.store.name,
       nroRemito: r.noteNumber || "",

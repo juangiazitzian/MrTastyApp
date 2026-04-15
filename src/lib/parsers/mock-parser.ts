@@ -4,6 +4,7 @@ import type {
   DeliveryNoteParsed,
   StockImageParsed,
 } from "./types";
+import { getTodayInputDate } from "@/lib/utils";
 
 /**
  * Parser mock para desarrollo local.
@@ -16,7 +17,7 @@ export class MockDocumentParser implements DocumentParser {
 
     return {
       supplierName: "BLANCALUNA",
-      date: new Date().toISOString().split("T")[0],
+      date: getTodayInputDate(),
       noteNumber: `R-${Math.floor(Math.random() * 10000)}`,
       total: Math.round(Math.random() * 50000 + 10000),
       currency: "ARS",

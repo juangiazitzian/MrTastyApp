@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { parseInputDate } from "@/lib/utils";
 
 export async function GET(request: NextRequest) {
   const url = new URL(request.url);
@@ -45,7 +46,7 @@ export async function POST(request: NextRequest) {
   const snapshot = await prisma.stockSnapshot.create({
     data: {
       storeId: body.storeId,
-      date: new Date(body.date || Date.now()),
+      date: body.date ? parseInputDate(body.date) : new Date(),
       source: body.source || "manual",
       imageUrl: body.imageUrl || null,
       notes: body.notes || null,
