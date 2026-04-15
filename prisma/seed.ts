@@ -103,41 +103,45 @@ async function main() {
   }
   console.log(`  Productos BLANCALUNA: ${products.length}`);
 
-  // ── Consumo base manual (ejemplo) ──
-  const baselineUsage: Record<string, number> = {
-    "prod-papas": 15,
-    "prod-cheddar": 4,
-    "prod-nuggets": 2,
-    "prod-medallonpollo": 2,
-    "prod-sal": 0.2,
-    "prod-leche": 1.5,
-    "prod-ketchup": 8,
-    "prod-mayo": 8,
-    "prod-mostaza": 1,
-    "prod-cheddarliq": 1.5,
+  // ── Consumo base manual ──
+  // weekdayAvgUsage: consumo promedio Lun-Jue
+  // weekendAvgUsage: consumo promedio Vie-Dom (generalmente más alto)
+  // avgDailyUsage:   promedio general (fallback si los anteriores son null)
+  const baselineUsage: Record<string, { avg: number; weekday: number; weekend: number }> = {
+    "prod-papas":         { avg: 18,  weekday: 14,  weekend: 24  },
+    "prod-cheddar":       { avg: 5,   weekday: 4,   weekend: 7   },
+    "prod-nuggets":       { avg: 2.5, weekday: 2,   weekend: 3.5 },
+    "prod-medallonpollo": { avg: 2.5, weekday: 2,   weekend: 3.5 },
+    "prod-sal":           { avg: 0.2, weekday: 0.2, weekend: 0.2 },
+    "prod-leche":         { avg: 1.5, weekday: 1.2, weekend: 2   },
+    "prod-ketchup":       { avg: 9,   weekday: 7,   weekend: 13  },
+    "prod-mayo":          { avg: 9,   weekday: 7,   weekend: 13  },
+    "prod-mostaza":       { avg: 1.2, weekday: 1,   weekend: 1.5 },
+    "prod-cheddarliq":    { avg: 1.8, weekday: 1.4, weekend: 2.5 },
   };
 
-  for (const [productId, avgDailyUsage] of Object.entries(baselineUsage)) {
+  for (const [productId, usage] of Object.entries(baselineUsage)) {
     for (const store of [balbin, peron]) {
-      await prisma.consumptionBaseline.upsert({
-        where: {
-          storeId_productId: {
-            storeId: store.id,
-            productId,
-          },
+      await (prisma.consumptionBaseline as any).upsert({
+        where: { storeId_productId: { storeId: store.id, productId } },
+        update: {
+          avgDailyUsage: usage.avg,
+          weekdayAvgUsage: usage.weekday,
+          weekendAvgUsage: usage.weekend,
         },
-        update: { avgDailyUsage },
         create: {
           storeId: store.id,
           productId,
-          avgDailyUsage,
+          avgDailyUsage: usage.avg,
+          weekdayAvgUsage: usage.weekday,
+          weekendAvgUsage: usage.weekend,
           source: "manual",
-          notes: "Baseline inicial estimado",
+          notes: "Baseline inicial estimado — ajustar con datos reales",
         },
       });
     }
   }
-  console.log(`  Consumos baseline cargados`);
+  console.log(`  Consumos baseline cargados (con diferenciación semana/fin de semana)`);
 
   // ── EERR Mappings ──
   for (const s of suppliers) {
@@ -159,12 +163,26 @@ async function main() {
   const settings = [
     {
       key: "blancaluna_delivery_schedule",
+      // Días JS: 0=Dom, 1=Lun, 2=Mar, 3=Mié, 4=Jue, 5=Vie, 6=Sáb
+      // coverageDayNumbers: días exactos que cubre ese pedido
       value: JSON.stringify({
-        1: { coverageDays: 2, label: "Lunes → Miércoles" },
-        3: { coverageDays: 2, label: "Miércoles → Viernes" },
-        5: { coverageDays: 3, label: "Viernes → Lunes" },
+        1: {
+          coverageDays: 2,
+          label: "Lunes → llega miércoles (cubre Mié+Jue)",
+          coverageDayNumbers: [3, 4],
+        },
+        3: {
+          coverageDays: 3,
+          label: "Miércoles → llega viernes (cubre Vie+Sáb+Dom)",
+          coverageDayNumbers: [5, 6, 0],
+        },
+        4: {
+          coverageDays: 2,
+          label: "Jueves → llega lunes (cubre Lun+Mar)",
+          coverageDayNumbers: [1, 2],
+        },
       }),
-      label: "Calendario de entregas BLANCALUNA (día de semana → días de cobertura)",
+      label: "Calendario de entregas BLANCALUNA",
     },
     {
       key: "default_currency",

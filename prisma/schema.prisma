@@ -190,16 +190,18 @@ model StockSnapshotItem {
 // ═══════════════════════════════════════
 
 model ConsumptionBaseline {
-  id              String   @id @default(cuid())
-  storeId         String
-  productId       String
-  avgDailyUsage   Float    // promedio diario de uso
-  source          String   @default("manual") // manual, calculado
-  calculatedFrom  DateTime? // desde cuándo se calculó
-  calculatedTo    DateTime? // hasta cuándo
-  notes           String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id                String   @id @default(cuid())
+  storeId           String
+  productId         String
+  avgDailyUsage     Float    // promedio diario general (fallback)
+  weekdayAvgUsage   Float?   // promedio lunes a jueves
+  weekendAvgUsage   Float?   // promedio viernes a domingo (días de mayor venta)
+  source            String   @default("manual") // manual, calculado
+  calculatedFrom    DateTime?
+  calculatedTo      DateTime?
+  notes             String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   store   Store   @relation(fields: [storeId], references: [id])
   product Product @relation(fields: [productId], references: [id])

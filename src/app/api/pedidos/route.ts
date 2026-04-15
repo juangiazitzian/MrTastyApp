@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { generateRecommendation, getDeliverySchedule } from "@/lib/recommendation-engine";
+import { generateRecommendation, getDeliverySchedule, type DayOfWeek } from "@/lib/recommendation-engine";
 
 export async function GET(request: NextRequest) {
   const url = new URL(request.url);
@@ -29,12 +29,15 @@ export async function GET(request: NextRequest) {
     const recommendations = await generateRecommendation({
       storeId,
       orderDate: new Date(),
+      orderDayOfWeek: dayOfWeek as DayOfWeek,
       coverageDays: config.coverageDays,
+      coverageDayNumbers: config.coverageDayNumbers ?? [],
     });
 
     return NextResponse.json({
       coverageDays: config.coverageDays,
       coverageLabel: config.label,
+      coverageDayNumbers: config.coverageDayNumbers ?? [],
       dayOfWeek,
       items: recommendations,
     });

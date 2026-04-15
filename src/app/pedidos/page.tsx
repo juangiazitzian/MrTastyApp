@@ -12,13 +12,25 @@ import { PageHeader } from "@/components/layout/page-header";
 import { useToast } from "@/components/ui/toast";
 import { formatDate, STATUS_LABELS } from "@/lib/utils";
 
+interface DayBreakdown {
+  day: number;
+  dayName: string;
+  usage: number;
+  isWeekend: boolean;
+}
+
 interface RecommendationItem {
   productId: string;
   productName: string;
   unit: string;
   stockActual: number;
   avgDailyUsage: number;
+  weekdayAvgUsage: number | null;
+  weekendAvgUsage: number | null;
   coverageDays: number;
+  coverageDayNumbers: number[];
+  dailyBreakdown: DayBreakdown[];
+  totalExpectedUsage: number;
   safetyStock: number;
   stockTarget: number;
   suggestedQty: number;
@@ -28,26 +40,26 @@ interface RecommendationItem {
 }
 
 const DAY_NAMES: Record<number, string> = {
-  0: "Domingo",
-  1: "Lunes",
-  2: "Martes",
-  3: "Miercoles",
-  4: "Jueves",
-  5: "Viernes",
-  6: "Sabado",
+  0: "Dom",
+  1: "Lun",
+  2: "Mar",
+  3: "Mié",
+  4: "Jue",
+  5: "Vie",
+  6: "Sáb",
 };
 
 export default function PedidosPage() {
   const { addToast } = useToast();
   const [stores, setStores] = useState<{ id: string; name: string }[]>([]);
   const [selectedStore, setSelectedStore] = useState("");
-  const [schedule, setSchedule] = useState<Record<number, { coverageDays: number; label: string }>>({});
+  const [schedule, setSchedule] = useState<Record<number, { coverageDays: number; label: string; coverageDayNumbers?: number[] }>>({});
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
 
   // Recomendación actual
   const [recommendation, setRecommendation] = useState<RecommendationItem[] | null>(null);
-  const [coverageInfo, setCoverageInfo] = useState<{ days: number; label: string } | null>(null);
+  const [coverageInfo, setCoverageInfo] = useState<{ days: number; label: string; coverageDayNumbers?: number[] } | null>(null);
   const [showDetail, setShowDetail] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -97,7 +109,11 @@ export default function PedidosPage() {
       }));
 
       setRecommendation(items);
-      setCoverageInfo({ days: data.coverageDays, label: data.coverageLabel });
+      setCoverageInfo({
+        days: data.coverageDays,
+        label: data.coverageLabel,
+        coverageDayNumbers: data.coverageDayNumbers ?? [],
+      });
     } catch {
       addToast("Error generando recomendacion", "error");
     }
@@ -221,9 +237,27 @@ export default function PedidosPage() {
       {recommendation && coverageInfo && (
         <Card className="mb-6">
           <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle>Pedido sugerido — {coverageInfo.label}</CardTitle>
-              <Badge variant="info">{coverageInfo.days} días de cobertura</Badge>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <CardTitle>Pedido sugerido</CardTitle>
+                <p className="text-xs text-white/40 mt-1">{coverageInfo.label}</p>
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                {coverageInfo.coverageDayNumbers?.map((dow) => (
+                  <span
+                    key={dow}
+                    className={`text-xs font-semibold px-2 py-1 rounded-md ${
+                      [5, 6, 0].includes(dow)
+                        ? "bg-brand-500/20 text-brand-400 border border-brand-500/30"
+                        : "bg-white/8 text-white/50 border border-white/10"
+                    }`}
+                  >
+                    {["Dom","Lun","Mar","Mié","Jue","Vie","Sáb"][dow]}
+                    {[5, 6, 0].includes(dow) && " 🔥"}
+                  </span>
+                ))}
+                <Badge variant="info">{coverageInfo.days} días</Badge>
+              </div>
             </div>
           </CardHeader>
           <CardContent className="p-0">
@@ -231,98 +265,144 @@ export default function PedidosPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Producto</TableHead>
-                  <TableHead className="text-right">Stock actual</TableHead>
-                  <TableHead className="text-right">Uso diario</TableHead>
+                  <TableHead className="text-right">Stock</TableHead>
+                  <TableHead className="text-right">Semana</TableHead>
+                  <TableHead className="text-right">Finde 🔥</TableHead>
+                  <TableHead className="text-right">Total esperado</TableHead>
                   <TableHead className="text-right">Objetivo</TableHead>
                   <TableHead className="text-right">Sugerido</TableHead>
                   <TableHead className="text-right">Pedir</TableHead>
-                  <TableHead>Detalle</TableHead>
+                  <TableHead className="w-8"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {recommendation.map((item) => (
-                  <TableRow key={item.productId}>
-                    <TableCell className="font-medium">{item.productName}</TableCell>
-                    <TableCell className="text-right">{item.stockActual}</TableCell>
-                    <TableCell className="text-right text-white/40">
-                      {item.avgDailyUsage.toFixed(1)}
-                    </TableCell>
-                    <TableCell className="text-right text-white/40">
-                      {item.stockTarget.toFixed(1)}
-                    </TableCell>
-                    <TableCell className="text-right">{item.suggestedQty}</TableCell>
-                    <TableCell className="text-right">
-                      <Input
-                        type="number"
-                        value={item.finalQty}
-                        onChange={(e) => {
-                          const newRec = recommendation.map((r) =>
-                            r.productId === item.productId
-                              ? { ...r, finalQty: parseFloat(e.target.value) || 0 }
-                              : r
-                          );
-                          setRecommendation(newRec);
-                        }}
-                        className="w-20 text-right h-8 inline-block"
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setShowDetail(item.productId === showDetail ? null : item.productId)}
+                {recommendation.map((item) => {
+                  const isDetailOpen = item.productId === showDetail;
+                  const hasWeekendDiff = item.weekendAvgUsage !== null;
+                  return (
+                    <React.Fragment key={item.productId}>
+                      <TableRow
+                        className={isDetailOpen ? "bg-white/3" : ""}
+                        style={{ cursor: "pointer" }}
+                        onClick={() => setShowDetail(isDetailOpen ? null : item.productId)}
                       >
-                        📊
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                        <TableCell className="font-semibold text-white/90">{item.productName}</TableCell>
+                        <TableCell className="text-right">
+                          <span className={item.stockActual === 0 ? "text-red-400 font-bold" : ""}>
+                            {item.stockActual}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-right text-white/50">
+                          {(item.weekdayAvgUsage ?? item.avgDailyUsage).toFixed(1)}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <span className={hasWeekendDiff ? "text-brand-400 font-semibold" : "text-white/30"}>
+                            {(item.weekendAvgUsage ?? item.avgDailyUsage).toFixed(1)}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-right text-white/60">
+                          {item.totalExpectedUsage?.toFixed(1) ?? "—"}
+                        </TableCell>
+                        <TableCell className="text-right text-white/50">
+                          {item.stockTarget.toFixed(1)}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <span className={item.suggestedQty > 0 ? "text-gold-400 font-bold" : "text-white/30"}>
+                            {item.suggestedQty}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                          <Input
+                            type="number"
+                            value={item.finalQty}
+                            onChange={(e) => {
+                              const newRec = recommendation.map((r) =>
+                                r.productId === item.productId
+                                  ? { ...r, finalQty: parseFloat(e.target.value) || 0 }
+                                  : r
+                              );
+                              setRecommendation(newRec);
+                            }}
+                            className="w-20 text-right h-8 inline-block"
+                          />
+                        </TableCell>
+                        <TableCell className="text-center text-white/30">
+                          {isDetailOpen ? "▲" : "▼"}
+                        </TableCell>
+                      </TableRow>
+
+                      {/* Desglose inline por día */}
+                      {isDetailOpen && (
+                        <TableRow>
+                          <TableCell
+                            colSpan={9}
+                            className="p-0"
+                            style={{ background: "hsl(25, 8%, 8%)", borderTop: "1px solid hsl(25, 8%, 18%)" }}
+                          >
+                            <div className="p-5">
+                              <p className="text-xs font-bold text-white/50 uppercase tracking-widest mb-3">
+                                Desglose — {item.productName}
+                              </p>
+
+                              {/* Días cubiertos */}
+                              <div className="flex flex-wrap gap-2 mb-4">
+                                {item.dailyBreakdown?.map((d) => (
+                                  <div
+                                    key={d.day}
+                                    className={`px-3 py-2 rounded-lg text-sm ${
+                                      d.isWeekend
+                                        ? "bg-brand-500/15 border border-brand-500/30"
+                                        : "bg-white/5 border border-white/10"
+                                    }`}
+                                  >
+                                    <p className={`font-semibold ${d.isWeekend ? "text-brand-300" : "text-white/60"}`}>
+                                      {d.dayName} {d.isWeekend && "🔥"}
+                                    </p>
+                                    <p className={`text-lg font-bold mt-0.5 ${d.isWeekend ? "text-brand-400" : "text-white/70"}`}>
+                                      {d.usage.toFixed(1)}
+                                    </p>
+                                  </div>
+                                ))}
+                                <div className="px-3 py-2 rounded-lg bg-gold-500/10 border border-gold-500/20 text-sm">
+                                  <p className="text-xs font-semibold text-gold-400 uppercase tracking-wide">Total esperado</p>
+                                  <p className="text-lg font-bold text-gold-400 mt-0.5">
+                                    {item.totalExpectedUsage?.toFixed(1)}
+                                  </p>
+                                </div>
+                              </div>
+
+                              {/* Cálculo */}
+                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                {[
+                                  { label: "Stock actual",    val: item.stockActual,                      color: "text-white" },
+                                  { label: "Uso esperado",    val: item.totalExpectedUsage?.toFixed(1),   color: "text-brand-400" },
+                                  { label: "Stock seguridad", val: item.safetyStock,                      color: "text-white/60" },
+                                  { label: "Pedir",           val: item.suggestedQty,                     color: "text-gold-400" },
+                                ].map((row) => (
+                                  <div
+                                    key={row.label}
+                                    className="p-3 rounded-lg"
+                                    style={{ background: "hsl(25, 10%, 13%)", border: "1px solid hsl(25, 8%, 20%)" }}
+                                  >
+                                    <p className="text-xs text-white/40 uppercase tracking-wide mb-1">{row.label}</p>
+                                    <p className={`text-xl font-bold ${row.color}`}>{row.val ?? "—"}</p>
+                                  </div>
+                                ))}
+                              </div>
+                              <p className="mt-3 text-xs text-white/25 font-mono">
+                                pedido = max(0, roundUp(uso_esperado + stock_seguridad − stock_actual, {item.roundingUnit}))
+                                = max(0, roundUp({item.totalExpectedUsage?.toFixed(1)} + {item.safetyStock} − {item.stockActual}, {item.roundingUnit}))
+                                = {item.suggestedQty}
+                              </p>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </React.Fragment>
+                  );
+                })}
               </TableBody>
             </Table>
-
-            {/* Detalle del cálculo */}
-            {showDetail && (
-              <div
-                className="border-t p-5"
-                style={{ borderColor: "hsl(25, 8%, 18%)", background: "hsl(25, 8%, 8%)" }}
-              >
-                {(() => {
-                  const item = recommendation.find((i) => i.productId === showDetail);
-                  if (!item) return null;
-                  let detail: any = {};
-                  try { detail = JSON.parse(item.calculationDetail); } catch {}
-                  return (
-                    <div className="text-sm">
-                      <p className="font-bold text-white mb-3">
-                        {item.productName} — Detalle del cálculo
-                      </p>
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                        {[
-                          { label: "Stock objetivo", val: detail.stock_objetivo },
-                          { label: "Stock actual",   val: detail.stock_actual },
-                          { label: "Diferencia",     val: detail.diferencia?.toFixed(1) },
-                          { label: "Resultado",      val: detail.resultado },
-                        ].map((row) => (
-                          <div
-                            key={row.label}
-                            className="p-3 rounded-lg"
-                            style={{ background: "hsl(25, 10%, 13%)", border: "1px solid hsl(25, 8%, 20%)" }}
-                          >
-                            <p className="text-xs text-white/40 uppercase tracking-wide mb-1">{row.label}</p>
-                            <p className="text-lg font-bold text-brand-400">{row.val ?? "—"}</p>
-                          </div>
-                        ))}
-                      </div>
-                      {detail.formula && (
-                        <p className="mt-3 text-xs text-white/30 font-mono bg-white/5 rounded px-3 py-2">
-                          {detail.formula}
-                        </p>
-                      )}
-                    </div>
-                  );
-                })()}
-              </div>
-            )}
           </CardContent>
 
           <div
