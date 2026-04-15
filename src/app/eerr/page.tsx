@@ -101,8 +101,13 @@ export default function EerrPage() {
   return (
     <div>
       <PageHeader
-        title="EERR - Mercaderia"
+        title="EERR — Mercadería"
         description="Resumen listo para completar el Estado de Resultados"
+        icon={
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+          </svg>
+        }
         actions={
           <div className="flex gap-2">
             <Button variant="outline" onClick={handleExportCSV}>
@@ -136,57 +141,73 @@ export default function EerrPage() {
       {/* Vista EERR */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center justify-between">
-            <span>MERCADERIA — {getMonthLabel(selectedYear, selectedMonth)}</span>
+          <div className="flex items-center justify-between">
+            <CardTitle>MERCADERIA — {getMonthLabel(selectedYear, selectedMonth)}</CardTitle>
             {data && (
-              <span className="text-lg font-bold text-brand-600">
+              <span className="text-lg font-bold text-brand-400">
                 {formatCurrency(data.grandTotal)}
               </span>
             )}
-          </CardTitle>
+          </div>
         </CardHeader>
         <CardContent className="p-0">
           {loading ? (
-            <p className="p-6 text-center text-gray-400">Cargando...</p>
+            <p className="p-8 text-center text-white/30">Cargando...</p>
           ) : !data?.items?.length ? (
-            <p className="p-8 text-center text-gray-400">
-              Sin datos de remitos para este periodo. Carga remitos primero.
-            </p>
+            <div className="p-10 text-center">
+              <p className="text-4xl mb-3">📊</p>
+              <p className="text-white/40 text-sm">
+                Sin datos para este periodo. Cargá remitos primero.
+              </p>
+            </div>
           ) : (
             <Table>
               <TableHeader>
-                <TableRow className="bg-gray-50">
-                  <TableHead>Categoria EERR</TableHead>
+                <TableRow>
+                  <TableHead>Categoría EERR</TableHead>
                   <TableHead>Proveedores</TableHead>
                   <TableHead className="text-center">Remitos</TableHead>
                   <TableHead className="text-right">Total</TableHead>
-                  <TableHead className="text-right">% del total</TableHead>
+                  <TableHead className="text-right">%</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {data.items.map((item) => (
-                  <TableRow key={item.category}>
-                    <TableCell className="font-medium">{item.category}</TableCell>
-                    <TableCell className="text-sm text-gray-500">
-                      {item.suppliers.join(", ")}
-                    </TableCell>
-                    <TableCell className="text-center">{item.count}</TableCell>
-                    <TableCell className="text-right font-semibold">
-                      {formatCurrency(item.total)}
-                    </TableCell>
-                    <TableCell className="text-right text-sm text-gray-500">
-                      {data.grandTotal > 0
-                        ? ((item.total / data.grandTotal) * 100).toFixed(1) + "%"
-                        : "—"}
-                    </TableCell>
-                  </TableRow>
-                ))}
-                <TableRow className="bg-gray-50 font-bold">
-                  <TableCell colSpan={3}>TOTAL MERCADERIA</TableCell>
-                  <TableCell className="text-right text-lg">
+                {data.items.map((item) => {
+                  const pct = data.grandTotal > 0 ? (item.total / data.grandTotal) * 100 : 0;
+                  return (
+                    <TableRow key={item.category}>
+                      <TableCell className="font-semibold text-white/90">{item.category}</TableCell>
+                      <TableCell className="text-sm text-white/40">
+                        {item.suppliers.join(", ")}
+                      </TableCell>
+                      <TableCell className="text-center text-white/50">{item.count}</TableCell>
+                      <TableCell className="text-right font-bold text-brand-400">
+                        {formatCurrency(item.total)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <div className="w-16 h-1 rounded-full bg-white/5 overflow-hidden">
+                            <div
+                              className="h-full rounded-full bg-gradient-to-r from-brand-500 to-gold-500"
+                              style={{ width: `${pct}%` }}
+                            />
+                          </div>
+                          <span className="text-xs text-white/40 w-10 text-right">
+                            {pct.toFixed(1)}%
+                          </span>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+                <TableRow>
+                  <TableCell colSpan={3} className="font-bold text-white uppercase tracking-wide text-xs">
+                    Total Mercadería
+                  </TableCell>
+                  <TableCell className="text-right text-lg font-bold text-brand-400">
                     {formatCurrency(data.grandTotal)}
                   </TableCell>
-                  <TableCell className="text-right">100%</TableCell>
+                  <TableCell className="text-right text-white/40 text-xs">100%</TableCell>
                 </TableRow>
               </TableBody>
             </Table>
@@ -195,12 +216,12 @@ export default function EerrPage() {
       </Card>
 
       {/* Info */}
-      <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800">
-        <p className="font-medium mb-1">Como usar esta vista</p>
-        <p>
-          Los totales se agrupan automaticamente segun el mapeo proveedor → categoria EERR.
-          Podes ajustar los mapeos desde Configuracion → Proveedores.
-          Usa &ldquo;Exportar para EERR&rdquo; para descargar un CSV listo para copiar a tu planilla.
+      <div className="mt-6 rounded-xl border border-sky-500/20 bg-sky-500/8 p-4 text-sm text-sky-300/80">
+        <p className="font-semibold text-sky-300 mb-1">💡 Cómo usar esta vista</p>
+        <p className="text-sky-400/70">
+          Los totales se agrupan automáticamente según el mapeo proveedor → categoría EERR.
+          Podés ajustar los mapeos desde Configuración → Proveedores.
+          Usá &ldquo;Exportar para EERR&rdquo; para descargar un CSV listo para copiar a tu planilla.
         </p>
       </div>
     </div>

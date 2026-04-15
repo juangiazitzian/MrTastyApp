@@ -154,6 +154,11 @@ export default function PedidosPage() {
       <PageHeader
         title="Pedido BLANCALUNA"
         description="Generador de pedido sugerido basado en stock y consumo"
+        icon={
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 100 4 2 2 0 000-4z" />
+          </svg>
+        }
       />
 
       {/* Selector de local y día */}
@@ -179,27 +184,35 @@ export default function PedidosPage() {
 
       {/* Estado actual */}
       {isOrderDay && !recommendation && (
-        <div className="mb-6 bg-brand-50 border border-brand-200 rounded-lg p-4">
-          <p className="font-semibold text-brand-800">
-            Hoy es {DAY_NAMES[dayOfWeek]} — dia de pedido
-          </p>
-          <p className="text-sm text-brand-600 mb-3">
-            Cobertura: {schedule[dayOfWeek]?.label} ({schedule[dayOfWeek]?.coverageDays} dias)
-          </p>
-          <Button onClick={() => generateRecommendation()} disabled={loading}>
-            {loading ? "Calculando..." : "Generar pedido sugerido"}
+        <div className="mb-6 rounded-xl border border-brand-500/30 bg-brand-500/10 p-5 flex items-center justify-between gap-4">
+          <div>
+            <p className="font-bold text-brand-300">
+              Hoy es {DAY_NAMES[dayOfWeek]} — día de pedido
+            </p>
+            <p className="text-sm text-brand-400/70 mt-0.5">
+              Cobertura: {schedule[dayOfWeek]?.label} ({schedule[dayOfWeek]?.coverageDays} días)
+            </p>
+          </div>
+          <Button onClick={() => generateRecommendation()} disabled={loading} className="whitespace-nowrap">
+            {loading ? "Calculando..." : "Generar pedido →"}
           </Button>
         </div>
       )}
 
       {!isOrderDay && !recommendation && (
-        <div className="mb-6 bg-gray-50 border rounded-lg p-4">
-          <p className="text-gray-600">
-            Hoy es {DAY_NAMES[dayOfWeek]}. Los dias de pedido configurados son:{" "}
-            {Object.entries(schedule).map(([d, c]) => `${DAY_NAMES[parseInt(d)]}`).join(", ")}.
+        <div
+          className="mb-6 rounded-xl border p-4"
+          style={{ borderColor: "hsl(25, 8%, 18%)", background: "hsl(25, 10%, 10%)" }}
+        >
+          <p className="text-white/60 text-sm">
+            Hoy es <span className="text-white/80 font-medium">{DAY_NAMES[dayOfWeek]}</span>.
+            Los días de pedido configurados son:{" "}
+            <span className="text-brand-400 font-medium">
+              {Object.entries(schedule).map(([d]) => DAY_NAMES[parseInt(d)]).join(", ")}
+            </span>
           </p>
-          <p className="text-sm text-gray-400 mt-1">
-            Podes generar un pedido igualmente usando los botones de arriba.
+          <p className="text-xs text-white/30 mt-1">
+            Podés generar un pedido igual usando los botones de arriba.
           </p>
         </div>
       )}
@@ -208,10 +221,10 @@ export default function PedidosPage() {
       {recommendation && coverageInfo && (
         <Card className="mb-6">
           <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              <span>Pedido sugerido — {coverageInfo.label}</span>
-              <Badge variant="info">{coverageInfo.days} dias de cobertura</Badge>
-            </CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle>Pedido sugerido — {coverageInfo.label}</CardTitle>
+              <Badge variant="info">{coverageInfo.days} días de cobertura</Badge>
+            </div>
           </CardHeader>
           <CardContent className="p-0">
             <Table>
@@ -231,10 +244,10 @@ export default function PedidosPage() {
                   <TableRow key={item.productId}>
                     <TableCell className="font-medium">{item.productName}</TableCell>
                     <TableCell className="text-right">{item.stockActual}</TableCell>
-                    <TableCell className="text-right text-gray-500">
+                    <TableCell className="text-right text-white/40">
                       {item.avgDailyUsage.toFixed(1)}
                     </TableCell>
-                    <TableCell className="text-right text-gray-500">
+                    <TableCell className="text-right text-white/40">
                       {item.stockTarget.toFixed(1)}
                     </TableCell>
                     <TableCell className="text-right">{item.suggestedQty}</TableCell>
@@ -269,22 +282,42 @@ export default function PedidosPage() {
 
             {/* Detalle del cálculo */}
             {showDetail && (
-              <div className="border-t bg-gray-50 p-4">
+              <div
+                className="border-t p-5"
+                style={{ borderColor: "hsl(25, 8%, 18%)", background: "hsl(25, 8%, 8%)" }}
+              >
                 {(() => {
                   const item = recommendation.find((i) => i.productId === showDetail);
                   if (!item) return null;
                   let detail: any = {};
                   try { detail = JSON.parse(item.calculationDetail); } catch {}
                   return (
-                    <div className="text-sm space-y-1">
-                      <p className="font-semibold">{item.productName} — Detalle del calculo</p>
-                      <p><strong>Formula:</strong> {detail.formula}</p>
-                      <p><strong>Stock objetivo:</strong> {detail.stock_objetivo}</p>
-                      <p><strong>Stock actual:</strong> {detail.stock_actual}</p>
-                      <p><strong>Diferencia:</strong> {detail.diferencia?.toFixed(1)}</p>
-                      <p><strong>Antes de redondeo:</strong> {detail.antes_redondeo?.toFixed(1)}</p>
-                      <p><strong>Redondeo:</strong> {detail.redondeo}</p>
-                      <p><strong>Resultado:</strong> {detail.resultado}</p>
+                    <div className="text-sm">
+                      <p className="font-bold text-white mb-3">
+                        {item.productName} — Detalle del cálculo
+                      </p>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        {[
+                          { label: "Stock objetivo", val: detail.stock_objetivo },
+                          { label: "Stock actual",   val: detail.stock_actual },
+                          { label: "Diferencia",     val: detail.diferencia?.toFixed(1) },
+                          { label: "Resultado",      val: detail.resultado },
+                        ].map((row) => (
+                          <div
+                            key={row.label}
+                            className="p-3 rounded-lg"
+                            style={{ background: "hsl(25, 10%, 13%)", border: "1px solid hsl(25, 8%, 20%)" }}
+                          >
+                            <p className="text-xs text-white/40 uppercase tracking-wide mb-1">{row.label}</p>
+                            <p className="text-lg font-bold text-brand-400">{row.val ?? "—"}</p>
+                          </div>
+                        ))}
+                      </div>
+                      {detail.formula && (
+                        <p className="mt-3 text-xs text-white/30 font-mono bg-white/5 rounded px-3 py-2">
+                          {detail.formula}
+                        </p>
+                      )}
                     </div>
                   );
                 })()}
@@ -292,16 +325,19 @@ export default function PedidosPage() {
             )}
           </CardContent>
 
-          <div className="p-4 border-t flex justify-between items-center">
-            <p className="text-sm text-gray-500">
-              Podes editar las cantidades antes de confirmar
+          <div
+            className="p-5 border-t flex justify-between items-center"
+            style={{ borderColor: "hsl(25, 8%, 18%)" }}
+          >
+            <p className="text-sm text-white/40">
+              Podés editar las cantidades antes de confirmar
             </p>
             <div className="flex gap-2">
               <Button variant="outline" onClick={() => setRecommendation(null)}>
                 Descartar
               </Button>
               <Button onClick={handleSaveOrder} disabled={saving}>
-                {saving ? "Guardando..." : "Confirmar pedido"}
+                {saving ? "Guardando..." : "✓ Confirmar pedido"}
               </Button>
             </div>
           </div>
@@ -315,32 +351,43 @@ export default function PedidosPage() {
         </CardHeader>
         <CardContent>
           {orders.length === 0 ? (
-            <p className="text-gray-400 text-center py-4">Sin pedidos registrados</p>
+            <div className="text-center py-8">
+              <p className="text-3xl mb-3">🛒</p>
+              <p className="text-white/40 text-sm">Sin pedidos registrados todavía</p>
+            </div>
           ) : (
             <div className="space-y-3">
               {orders.map((order: any) => {
                 const st = STATUS_LABELS[order.status] || STATUS_LABELS.borrador;
                 return (
-                  <div key={order.id} className="border rounded-lg p-4">
-                    <div className="flex items-center justify-between mb-2">
+                  <div
+                    key={order.id}
+                    className="rounded-xl p-4"
+                    style={{ border: "1px solid hsl(25, 8%, 18%)", background: "hsl(25, 8%, 12%)" }}
+                  >
+                    <div className="flex items-center justify-between mb-3">
                       <div>
-                        <p className="font-medium">
+                        <p className="font-semibold text-white/80">
                           Pedido del {formatDate(order.orderDate)}
                         </p>
-                        <p className="text-sm text-gray-500">
-                          {order.store?.name} — {order.coverageDays} dias de cobertura
+                        <p className="text-xs text-white/40 mt-0.5">
+                          {order.store?.name} · {order.coverageDays} días de cobertura
                         </p>
                       </div>
                       <span className={`badge ${st.color}`}>{st.label}</span>
                     </div>
                     {order.items && (
-                      <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
                         {order.items.map((item: any) => (
-                          <div key={item.id} className="bg-gray-50 rounded px-3 py-2 text-sm">
-                            <p className="font-medium">{item.product?.name}</p>
-                            <div className="flex justify-between text-xs text-gray-500">
-                              <span>Sugerido: {item.suggestedQty}</span>
-                              <span className="font-semibold text-gray-800">Final: {item.finalQty}</span>
+                          <div
+                            key={item.id}
+                            className="rounded-lg px-3 py-2 text-sm"
+                            style={{ background: "hsl(25, 8%, 9%)", border: "1px solid hsl(25, 8%, 16%)" }}
+                          >
+                            <p className="font-medium text-white/70 text-xs truncate mb-1">{item.product?.name}</p>
+                            <div className="flex justify-between text-xs">
+                              <span className="text-white/30">Sug: {item.suggestedQty}</span>
+                              <span className="font-bold text-brand-400">→ {item.finalQty}</span>
                             </div>
                           </div>
                         ))}

@@ -93,20 +93,28 @@ export default function ConfiguracionPage() {
   return (
     <div>
       <PageHeader
-        title="Configuracion"
-        description="Locales, proveedores, productos, alias y parametros"
+        title="Configuración"
+        description="Locales, proveedores, productos, alias y parámetros"
+        icon={
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065zM15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+        }
       />
 
       {/* Tabs */}
-      <div className="flex gap-1 mb-6 border-b">
+      <div
+        className="flex gap-0.5 mb-6 p-1 rounded-xl"
+        style={{ background: "hsl(25, 8%, 9%)", border: "1px solid hsl(25, 8%, 16%)" }}
+      >
         {tabs.map((t) => (
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+            className={`px-4 py-2 text-sm font-medium rounded-lg transition-all ${
               tab === t.key
-                ? "border-brand-500 text-brand-600"
-                : "border-transparent text-gray-500 hover:text-gray-700"
+                ? "bg-brand-500 text-white shadow-sm"
+                : "text-white/40 hover:text-white/70"
             }`}
           >
             {t.label}
@@ -117,7 +125,7 @@ export default function ConfiguracionPage() {
       {/* ── LOCALES ── */}
       {tab === "locales" && (
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
+          <CardHeader className="flex flex-row items-center justify-between pb-3">
             <CardTitle>Locales</CardTitle>
             <Button
               size="sm"
@@ -142,7 +150,7 @@ export default function ConfiguracionPage() {
                 {stores.map((s) => (
                   <TableRow key={s.id}>
                     <TableCell className="font-medium">{s.name}</TableCell>
-                    <TableCell className="text-gray-500">{s.address || "—"}</TableCell>
+                    <TableCell className="text-white/40">{s.address || "—"}</TableCell>
                     <TableCell>
                       <Badge variant={s.active ? "success" : "default"}>
                         {s.active ? "Activo" : "Inactivo"}
@@ -159,7 +167,7 @@ export default function ConfiguracionPage() {
       {/* ── PROVEEDORES ── */}
       {tab === "proveedores" && (
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
+          <CardHeader className="flex flex-row items-center justify-between pb-3">
             <CardTitle>Proveedores</CardTitle>
             <Button
               size="sm"
@@ -191,11 +199,11 @@ export default function ConfiguracionPage() {
                         <Badge variant="info" className="ml-2">BL</Badge>
                       )}
                     </TableCell>
-                    <TableCell className="text-gray-500">{s.eerrLabel || "—"}</TableCell>
+                    <TableCell className="text-white/40">{s.eerrLabel || "—"}</TableCell>
                     <TableCell>
                       <Badge>{s.category}</Badge>
                     </TableCell>
-                    <TableCell className="text-xs text-gray-400 max-w-48 truncate">
+                    <TableCell className="text-xs text-white/30 max-w-48 truncate">
                       {s.aliases?.map((a: any) => a.alias).join(", ") || "—"}
                     </TableCell>
                     <TableCell>{s._count?.deliveryNotes || 0}</TableCell>
@@ -210,7 +218,7 @@ export default function ConfiguracionPage() {
       {/* ── PRODUCTOS ── */}
       {tab === "productos" && (
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
+          <CardHeader className="flex flex-row items-center justify-between pb-3">
             <CardTitle>Productos</CardTitle>
             <Button
               size="sm"
@@ -241,10 +249,10 @@ export default function ConfiguracionPage() {
                     <TableCell>{p.unit}</TableCell>
                     <TableCell className="text-right">{p.safetyStock}</TableCell>
                     <TableCell className="text-right">{p.roundingUnit}</TableCell>
-                    <TableCell className="text-xs text-gray-400 max-w-36 truncate">
+                    <TableCell className="text-xs text-white/30 max-w-36 truncate">
                       {p.aliases?.map((a: any) => a.alias).join(", ") || "—"}
                     </TableCell>
-                    <TableCell className="text-sm text-gray-500">
+                    <TableCell className="text-sm text-white/40">
                       {p.suppliers?.map((sp: any) => sp.supplier?.name).join(", ") || "—"}
                     </TableCell>
                   </TableRow>
@@ -271,7 +279,7 @@ export default function ConfiguracionPage() {
           {formData.type === "store" && (
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium mb-1">Nombre *</label>
+                <label className="block text-xs font-semibold text-white/50 uppercase tracking-wide mb-1.5">Nombre *</label>
                 <Input
                   value={formData.name || ""}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
@@ -279,7 +287,7 @@ export default function ConfiguracionPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Direccion</label>
+                <label className="block text-xs font-semibold text-white/50 uppercase tracking-wide mb-1.5">Direccion</label>
                 <Input
                   value={formData.address || ""}
                   onChange={(e) => setFormData({ ...formData, address: e.target.value })}
@@ -291,14 +299,14 @@ export default function ConfiguracionPage() {
           {formData.type === "supplier" && (
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium mb-1">Nombre *</label>
+                <label className="block text-xs font-semibold text-white/50 uppercase tracking-wide mb-1.5">Nombre *</label>
                 <Input
                   value={formData.name || ""}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Etiqueta EERR</label>
+                <label className="block text-xs font-semibold text-white/50 uppercase tracking-wide mb-1.5">Etiqueta EERR</label>
                 <Input
                   value={formData.eerrLabel || ""}
                   onChange={(e) => setFormData({ ...formData, eerrLabel: e.target.value })}
@@ -306,7 +314,7 @@ export default function ConfiguracionPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Categoria</label>
+                <label className="block text-xs font-semibold text-white/50 uppercase tracking-wide mb-1.5">Categoria</label>
                 <Select
                   value={formData.category || "MERCADERIA"}
                   onChange={(e) => setFormData({ ...formData, category: e.target.value })}
@@ -318,7 +326,7 @@ export default function ConfiguracionPage() {
                 </Select>
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Alias (separados por coma)</label>
+                <label className="block text-xs font-semibold text-white/50 uppercase tracking-wide mb-1.5">Alias (separados por coma)</label>
                 <Input
                   value={formData.aliasesRaw || ""}
                   onChange={(e) => setFormData({ ...formData, aliasesRaw: e.target.value })}
@@ -331,7 +339,7 @@ export default function ConfiguracionPage() {
           {formData.type === "product" && (
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium mb-1">Nombre *</label>
+                <label className="block text-xs font-semibold text-white/50 uppercase tracking-wide mb-1.5">Nombre *</label>
                 <Input
                   value={formData.name || ""}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
@@ -339,7 +347,7 @@ export default function ConfiguracionPage() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium mb-1">Unidad</label>
+                  <label className="block text-xs font-semibold text-white/50 uppercase tracking-wide mb-1.5">Unidad</label>
                   <Select
                     value={formData.unit || "unidad"}
                     onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
@@ -353,7 +361,7 @@ export default function ConfiguracionPage() {
                   </Select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">Tam. pack</label>
+                  <label className="block text-xs font-semibold text-white/50 uppercase tracking-wide mb-1.5">Tam. pack</label>
                   <Input
                     type="number"
                     value={formData.packSize || 1}
@@ -363,7 +371,7 @@ export default function ConfiguracionPage() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium mb-1">Stock de seguridad</label>
+                  <label className="block text-xs font-semibold text-white/50 uppercase tracking-wide mb-1.5">Stock de seguridad</label>
                   <Input
                     type="number"
                     value={formData.safetyStock || 0}
@@ -371,7 +379,7 @@ export default function ConfiguracionPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">Unidad de redondeo</label>
+                  <label className="block text-xs font-semibold text-white/50 uppercase tracking-wide mb-1.5">Unidad de redondeo</label>
                   <Input
                     type="number"
                     value={formData.roundingUnit || 1}
@@ -380,7 +388,7 @@ export default function ConfiguracionPage() {
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Proveedor</label>
+                <label className="block text-xs font-semibold text-white/50 uppercase tracking-wide mb-1.5">Proveedor</label>
                 <Select
                   value={formData.supplierId || ""}
                   onChange={(e) => setFormData({ ...formData, supplierId: e.target.value })}
@@ -392,7 +400,7 @@ export default function ConfiguracionPage() {
                 </Select>
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Alias (separados por coma)</label>
+                <label className="block text-xs font-semibold text-white/50 uppercase tracking-wide mb-1.5">Alias (separados por coma)</label>
                 <Input
                   value={formData.aliasesRaw || ""}
                   onChange={(e) => setFormData({ ...formData, aliasesRaw: e.target.value })}
@@ -459,22 +467,26 @@ function DeliveryScheduleConfig() {
     addToast("Calendario de entregas guardado", "success");
   };
 
-  if (loading) return <p className="text-gray-400">Cargando...</p>;
+  if (loading) return <p className="text-white/30 text-sm">Cargando...</p>;
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Dias de entrega BLANCALUNA</CardTitle>
+        <CardTitle>Días de entrega BLANCALUNA</CardTitle>
       </CardHeader>
       <CardContent>
-        <p className="text-sm text-gray-500 mb-4">
-          Configura que dias se hacen pedidos y cuantos dias de cobertura tiene cada uno.
+        <p className="text-sm text-white/40 mb-4">
+          Configurá qué días se hacen pedidos y cuántos días de cobertura tiene cada uno.
         </p>
 
         <div className="space-y-3">
           {Object.entries(schedule).map(([day, config]) => (
-            <div key={day} className="flex items-center gap-4 p-3 border rounded-lg">
-              <span className="font-medium w-28">{dayNames[day] || `Dia ${day}`}</span>
+            <div
+              key={day}
+              className="flex items-center gap-4 p-3 rounded-lg"
+              style={{ border: "1px solid hsl(25, 8%, 18%)", background: "hsl(25, 8%, 12%)" }}
+            >
+              <span className="font-semibold text-white/70 w-28">{dayNames[day] || `Día ${day}`}</span>
               <div className="flex-1">
                 <Input
                   value={config.label}
@@ -489,7 +501,7 @@ function DeliveryScheduleConfig() {
                 />
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-500">Dias:</span>
+                <span className="text-sm text-white/40">Días:</span>
                 <Input
                   type="number"
                   value={config.coverageDays}

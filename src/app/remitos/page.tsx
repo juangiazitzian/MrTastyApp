@@ -203,15 +203,20 @@ export default function RemitosPage() {
     <div>
       <PageHeader
         title="Remitos"
-        description="Carga y revision de remitos de proveedores"
+        description="Carga y revisión de remitos de proveedores"
+        icon={
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+        }
         actions={
           <div className="flex gap-2">
             <Button variant="outline" onClick={handleManualRemito}>
               + Manual
             </Button>
             <label className="cursor-pointer">
-              <Button disabled={uploading} asChild>
-                <span>{uploading ? "Procesando..." : "📷 Subir imagen"}</span>
+              <Button disabled={uploading} className="pointer-events-none">
+                {uploading ? "Procesando..." : "📷 Subir imagen"}
               </Button>
               <input
                 type="file"
@@ -257,24 +262,25 @@ export default function RemitosPage() {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
         <Card>
           <CardContent className="pt-4">
-            <p className="text-xs text-gray-500">Total filtrado</p>
-            <p className="text-xl font-bold">{formatCurrency(total)}</p>
-            <p className="text-xs text-gray-400">{remitos.length} remitos</p>
+            <p className="text-xs text-white/40 uppercase tracking-wide font-medium">Total filtrado</p>
+            <p className="text-xl font-bold text-brand-400 mt-1">{formatCurrency(total)}</p>
+            <p className="text-xs text-white/30 mt-0.5">{remitos.length} remitos</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-4">
-            <p className="text-xs text-gray-500">Validados</p>
-            <p className="text-xl font-bold text-green-600">{formatCurrency(totalValidados)}</p>
-            <p className="text-xs text-gray-400">{validados.length} remitos</p>
+            <p className="text-xs text-white/40 uppercase tracking-wide font-medium">Validados</p>
+            <p className="text-xl font-bold text-emerald-400 mt-1">{formatCurrency(totalValidados)}</p>
+            <p className="text-xs text-white/30 mt-0.5">{validados.length} remitos</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-4">
-            <p className="text-xs text-gray-500">Pendientes</p>
-            <p className="text-xl font-bold text-yellow-600">
+            <p className="text-xs text-white/40 uppercase tracking-wide font-medium">Pendientes</p>
+            <p className="text-xl font-bold text-amber-400 mt-1">
               {remitos.filter((r) => r.status === "pendiente").length}
             </p>
+            <p className="text-xs text-white/30 mt-0.5">para revisar</p>
           </CardContent>
         </Card>
       </div>
@@ -283,10 +289,11 @@ export default function RemitosPage() {
       <Card>
         <CardContent className="p-0">
           {loading ? (
-            <p className="p-6 text-center text-gray-400">Cargando...</p>
+            <p className="p-8 text-center text-white/30">Cargando...</p>
           ) : remitos.length === 0 ? (
-            <div className="p-8 text-center">
-              <p className="text-gray-400 mb-3">No hay remitos para este periodo</p>
+            <div className="p-10 text-center">
+              <p className="text-4xl mb-3">📄</p>
+              <p className="text-white/40 mb-4 text-sm">No hay remitos para este periodo</p>
               <Button variant="outline" size="sm" onClick={handleManualRemito}>
                 Cargar primer remito
               </Button>
@@ -312,7 +319,7 @@ export default function RemitosPage() {
                       <TableCell className="whitespace-nowrap">{formatDate(r.date)}</TableCell>
                       <TableCell>{r.supplier?.name || r.supplierRaw || "—"}</TableCell>
                       <TableCell className="text-sm">{r.store.name}</TableCell>
-                      <TableCell className="text-sm text-gray-500">{r.noteNumber || "—"}</TableCell>
+                      <TableCell className="text-sm text-white/30">{r.noteNumber || "—"}</TableCell>
                       <TableCell className="text-right font-medium">{formatCurrency(r.total)}</TableCell>
                       <TableCell>
                         <span className={`badge ${st.color}`}>{st.label}</span>
@@ -366,14 +373,14 @@ export default function RemitosPage() {
         </DialogHeader>
         <DialogContent>
           {parsedData && parsedData.confidence < 0.7 && (
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4 text-sm text-yellow-800">
-              ⚠️ La confianza del OCR es baja ({Math.round(parsedData.confidence * 100)}%). Revisa bien los datos.
+            <div className="bg-amber-500/10 border border-amber-500/25 rounded-lg p-3 mb-4 text-sm text-amber-300">
+              ⚠️ Confianza del OCR baja ({Math.round(parsedData.confidence * 100)}%) — revisá bien los datos antes de guardar.
             </div>
           )}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Local *</label>
+              <label className="block text-xs font-semibold text-white/50 uppercase tracking-wide mb-1.5">Local *</label>
               <Select
                 value={reviewForm.storeId}
                 onChange={(e) => setReviewForm({ ...reviewForm, storeId: e.target.value })}
@@ -384,7 +391,7 @@ export default function RemitosPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Proveedor</label>
+              <label className="block text-xs font-semibold text-white/50 uppercase tracking-wide mb-1.5">Proveedor</label>
               <Select
                 value={reviewForm.supplierId}
                 onChange={(e) => setReviewForm({ ...reviewForm, supplierId: e.target.value })}
@@ -393,14 +400,14 @@ export default function RemitosPage() {
                 {suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
               </Select>
               {reviewForm.supplierRaw && reviewForm.supplierRaw !== "" && (
-                <p className="text-xs text-gray-400 mt-1">
+                <p className="text-xs text-white/30 mt-1">
                   Detectado: &ldquo;{reviewForm.supplierRaw}&rdquo;
                 </p>
               )}
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Fecha *</label>
+              <label className="block text-xs font-semibold text-white/50 uppercase tracking-wide mb-1.5">Fecha *</label>
               <Input
                 type="date"
                 value={reviewForm.date}
@@ -409,7 +416,7 @@ export default function RemitosPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Nro de remito</label>
+              <label className="block text-xs font-semibold text-white/50 uppercase tracking-wide mb-1.5">Nro de remito</label>
               <Input
                 value={reviewForm.noteNumber}
                 onChange={(e) => setReviewForm({ ...reviewForm, noteNumber: e.target.value })}
@@ -418,7 +425,7 @@ export default function RemitosPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Total *</label>
+              <label className="block text-xs font-semibold text-white/50 uppercase tracking-wide mb-1.5">Total *</label>
               <Input
                 type="number"
                 step="0.01"
@@ -429,7 +436,7 @@ export default function RemitosPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Notas</label>
+              <label className="block text-xs font-semibold text-white/50 uppercase tracking-wide mb-1.5">Notas</label>
               <Input
                 value={reviewForm.notes}
                 onChange={(e) => setReviewForm({ ...reviewForm, notes: e.target.value })}
@@ -441,20 +448,20 @@ export default function RemitosPage() {
           {/* Items detectados */}
           {reviewForm.items.length > 0 && (
             <div className="mt-4">
-              <h4 className="text-sm font-medium text-gray-700 mb-2">Items detectados</h4>
-              <div className="border rounded-lg overflow-hidden">
+              <h4 className="text-xs font-semibold text-white/40 uppercase tracking-wide mb-2">Items detectados</h4>
+              <div className="rounded-lg overflow-hidden" style={{ border: "1px solid hsl(25, 8%, 18%)" }}>
                 <table className="w-full text-sm">
-                  <thead className="bg-gray-50">
+                  <thead style={{ background: "hsl(25, 8%, 8%)" }}>
                     <tr>
-                      <th className="px-3 py-2 text-left">Producto</th>
-                      <th className="px-3 py-2 text-right">Cant.</th>
-                      <th className="px-3 py-2 text-right">P.Unit.</th>
-                      <th className="px-3 py-2 text-right">Subtotal</th>
+                      <th className="px-3 py-2 text-left text-xs text-white/30 font-semibold uppercase">Producto</th>
+                      <th className="px-3 py-2 text-right text-xs text-white/30 font-semibold uppercase">Cant.</th>
+                      <th className="px-3 py-2 text-right text-xs text-white/30 font-semibold uppercase">P.Unit.</th>
+                      <th className="px-3 py-2 text-right text-xs text-white/30 font-semibold uppercase">Subtotal</th>
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody style={{ background: "hsl(25, 10%, 10%)" }}>
                     {reviewForm.items.map((item: any, idx: number) => (
-                      <tr key={idx} className="border-t">
+                      <tr key={idx} className="border-t" style={{ borderColor: "hsl(25, 8%, 17%)" }}>
                         <td className="px-3 py-2">
                           <Input
                             value={item.productRaw}

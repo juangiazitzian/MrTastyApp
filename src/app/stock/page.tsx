@@ -32,6 +32,7 @@ export default function StockPage() {
   const [showForm, setShowForm] = useState(false);
   const [formSource, setFormSource] = useState<"manual" | "foto">("manual");
   const [formItems, setFormItems] = useState<StockItem[]>([]);
+  const [formDate, setFormDate] = useState<string>(new Date().toISOString().split("T")[0]);
   const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
@@ -55,6 +56,7 @@ export default function StockPage() {
 
   const initManualForm = () => {
     setFormSource("manual");
+    setFormDate(new Date().toISOString().split("T")[0]);
     setFormItems(
       products.map((p: any) => ({
         productId: p.id,
@@ -95,6 +97,7 @@ export default function StockPage() {
       }));
 
       setFormSource("foto");
+      setFormDate(new Date().toISOString().split("T")[0]);
       setFormItems(parsedItems);
       setShowForm(true);
     } catch {
@@ -122,6 +125,7 @@ export default function StockPage() {
         body: JSON.stringify({
           storeId: selectedStore,
           source: formSource,
+          date: formDate,
           items: validItems.map((i) => ({
             productId: i.productId,
             quantity: i.quantity,
@@ -146,14 +150,19 @@ export default function StockPage() {
       <PageHeader
         title="Stock"
         description="Snapshots de stock actual por local"
+        icon={
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+          </svg>
+        }
         actions={
           <div className="flex gap-2">
             <Button variant="outline" onClick={initManualForm}>
               + Carga manual
             </Button>
             <label className="cursor-pointer">
-              <Button disabled={uploading} asChild>
-                <span>{uploading ? "Procesando..." : "📷 Desde foto"}</span>
+              <Button disabled={uploading} className="pointer-events-none">
+                {uploading ? "Procesando..." : "📷 Desde foto"}
               </Button>
               <input
                 type="file"
@@ -178,10 +187,10 @@ export default function StockPage() {
       {snapshots.length > 0 && (
         <Card className="mb-6">
           <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              <span>Ultimo stock registrado</span>
+            <div className="flex items-center justify-between">
+              <CardTitle>Último stock registrado</CardTitle>
               <Badge variant="info">{formatDate(snapshots[0].date)} — {snapshots[0].source}</Badge>
-            </CardTitle>
+            </div>
           </CardHeader>
           <CardContent className="p-0">
             <Table>
@@ -197,7 +206,7 @@ export default function StockPage() {
                   <TableRow key={item.id}>
                     <TableCell className="font-medium">{item.product?.name || "—"}</TableCell>
                     <TableCell className="text-right font-semibold">{item.quantity}</TableCell>
-                    <TableCell className="text-sm text-gray-500">{item.product?.unit || ""}</TableCell>
+                    <TableCell className="text-sm text-white/40">{item.product?.unit || ""}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -213,19 +222,26 @@ export default function StockPage() {
         </CardHeader>
         <CardContent>
           {loading ? (
-            <p className="text-gray-400">Cargando...</p>
+            <p className="text-white/30 text-sm">Cargando...</p>
           ) : snapshots.length === 0 ? (
-            <p className="text-gray-400 text-center py-4">
-              Sin snapshots de stock. Carga tu primer stock.
-            </p>
+            <div className="text-center py-8">
+              <p className="text-3xl mb-3">📦</p>
+              <p className="text-white/40 text-sm">
+                Sin snapshots de stock. Cargá tu primer inventario.
+              </p>
+            </div>
           ) : (
             <div className="space-y-2">
               {snapshots.map((snap: any) => (
-                <div key={snap.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50">
+                <div
+                  key={snap.id}
+                  className="flex items-center justify-between p-3 rounded-lg transition-colors"
+                  style={{ border: "1px solid hsl(25, 8%, 18%)", background: "hsl(25, 8%, 12%)" }}
+                >
                   <div>
-                    <p className="font-medium">{formatDate(snap.date)}</p>
-                    <p className="text-sm text-gray-500">
-                      {snap.items?.length || 0} productos — Fuente: {snap.source}
+                    <p className="font-medium text-white/80">{formatDate(snap.date)}</p>
+                    <p className="text-xs text-white/40 mt-0.5">
+                      {snap.items?.length || 0} productos · Fuente: {snap.source}
                     </p>
                   </div>
                   <Badge variant={snap.source === "foto" ? "info" : "default"}>
@@ -246,15 +262,32 @@ export default function StockPage() {
           </DialogTitle>
         </DialogHeader>
         <DialogContent>
+          {/* Fecha del snapshot */}
+          <div className="mb-4">
+            <label className="block text-xs font-semibold text-white/50 uppercase tracking-wide mb-1.5">
+              Fecha del stock
+            </label>
+            <Input
+              type="date"
+              value={formDate}
+              onChange={(e) => setFormDate(e.target.value)}
+              className="w-48"
+            />
+          </div>
+
           {formSource === "foto" && (
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4 text-sm text-yellow-800">
-              ⚠️ Revisa y corrige los datos antes de guardar. El OCR puede tener errores.
+            <div className="bg-amber-500/10 border border-amber-500/25 rounded-lg p-3 mb-4 text-sm text-amber-300">
+              ⚠️ Revisá y corregí los datos antes de guardar — el OCR puede cometer errores.
             </div>
           )}
 
           <div className="space-y-2 max-h-96 overflow-y-auto">
             {formItems.map((item, idx) => (
-              <div key={idx} className="flex items-center gap-3 p-2 border rounded">
+              <div
+                key={idx}
+                className="flex items-center gap-3 p-2 rounded-lg"
+                style={{ border: "1px solid hsl(25, 8%, 18%)", background: "hsl(25, 8%, 12%)" }}
+              >
                 <div className="flex-1">
                   {formSource === "foto" ? (
                     <div className="flex items-center gap-2">

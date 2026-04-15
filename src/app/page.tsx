@@ -12,250 +12,342 @@ import { formatCurrency, getMonthLabel, getCurrentYearMonth } from "@/lib/utils"
 interface SummaryData {
   grandTotal: number;
   totalRemitos: number;
-  bySupplier: {
-    supplierName: string;
-    total: number;
-    count: number;
-  }[];
-  byStore: {
-    storeName: string;
-    total: number;
-    count: number;
-  }[];
+  bySupplier: { supplierName: string; total: number; count: number }[];
+  byStore:    { storeName: string;    total: number; count: number }[];
 }
+
+const monthNames = [
+  "Enero","Febrero","Marzo","Abril","Mayo","Junio",
+  "Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre",
+];
+
+// Quick nav cards
+const quickLinks = [
+  {
+    href: "/remitos",
+    label: "Remitos",
+    desc: "Cargar y revisar",
+    color: "from-brand-500/20 to-brand-500/5",
+    border: "border-brand-500/20",
+    icon: (
+      <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+      </svg>
+    ),
+  },
+  {
+    href: "/eerr",
+    label: "EERR",
+    desc: "Resumen mensual",
+    color: "from-gold-500/20 to-gold-500/5",
+    border: "border-gold-500/20",
+    icon: (
+      <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+      </svg>
+    ),
+  },
+  {
+    href: "/stock",
+    label: "Stock",
+    desc: "Inventario actual",
+    color: "from-sky-500/20 to-sky-500/5",
+    border: "border-sky-500/20",
+    icon: (
+      <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+      </svg>
+    ),
+  },
+  {
+    href: "/pedidos",
+    label: "Pedido BL",
+    desc: "Sugerencia Blancaluna",
+    color: "from-emerald-500/20 to-emerald-500/5",
+    border: "border-emerald-500/20",
+    icon: (
+      <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 100 4 2 2 0 000-4z" />
+      </svg>
+    ),
+  },
+];
 
 export default function DashboardPage() {
   const { year, month } = getCurrentYearMonth();
   const [selectedMonth, setSelectedMonth] = useState(month);
-  const [selectedYear, setSelectedYear] = useState(year);
-  const [storeId, setStoreId] = useState("all");
-  const [stores, setStores] = useState<{ id: string; name: string }[]>([]);
-  const [summary, setSummary] = useState<SummaryData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [selectedYear,  setSelectedYear]  = useState(year);
+  const [storeId,       setStoreId]       = useState("all");
+  const [stores,        setStores]        = useState<{ id: string; name: string }[]>([]);
+  const [summary,       setSummary]       = useState<SummaryData | null>(null);
+  const [loading,       setLoading]       = useState(true);
 
   useEffect(() => {
-    fetch("/api/locales")
-      .then((r) => r.json())
-      .then(setStores);
+    fetch("/api/locales").then((r) => r.json()).then(setStores);
   }, []);
 
   useEffect(() => {
     setLoading(true);
     const params = new URLSearchParams({
       month: selectedMonth.toString(),
-      year: selectedYear.toString(),
+      year:  selectedYear.toString(),
     });
     if (storeId !== "all") params.set("storeId", storeId);
-
     fetch(`/api/remitos/summary?${params}`)
       .then((r) => r.json())
-      .then((data) => {
-        setSummary(data);
-        setLoading(false);
-      })
+      .then((data) => { setSummary(data); setLoading(false); })
       .catch(() => setLoading(false));
   }, [selectedMonth, selectedYear, storeId]);
 
   const dayOfWeek = new Date().getDay();
   const isOrderDay = [1, 3, 5].includes(dayOfWeek);
-  const dayNames: Record<number, string> = {
-    1: "Lunes",
-    3: "Miercoles",
-    5: "Viernes",
-  };
+  const dayNames: Record<number, string> = { 1: "Lunes", 3: "Miércoles", 5: "Viernes" };
+
+  const grandTotalPercent = summary?.byStore?.length
+    ? Math.max(...summary.byStore.map((s) => s.total))
+    : 0;
 
   return (
     <div>
       <PageHeader
         title="Dashboard"
-        description={`Resumen de ${getMonthLabel(selectedYear, selectedMonth)}`}
+        description={`${monthNames[selectedMonth - 1]} ${selectedYear}`}
+        icon={
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+          </svg>
+        }
+        actions={
+          <div className="flex flex-wrap gap-2">
+            <Select
+              value={selectedMonth.toString()}
+              onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
+              className="w-36"
+            >
+              {monthNames.map((name, i) => (
+                <option key={i + 1} value={i + 1}>{name}</option>
+              ))}
+            </Select>
+            <Select
+              value={selectedYear.toString()}
+              onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+              className="w-24"
+            >
+              {[year - 1, year, year + 1].map((y) => (
+                <option key={y} value={y}>{y}</option>
+              ))}
+            </Select>
+            <Select
+              value={storeId}
+              onChange={(e) => setStoreId(e.target.value)}
+              className="w-44"
+            >
+              <option value="all">Todos los locales</option>
+              {stores.map((s) => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </Select>
+          </div>
+        }
       />
 
-      {/* Filtros */}
-      <div className="flex flex-wrap gap-3 mb-6">
-        <Select
-          value={selectedMonth.toString()}
-          onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
-        >
-          {Array.from({ length: 12 }, (_, i) => (
-            <option key={i + 1} value={i + 1}>
-              {getMonthLabel(selectedYear, i + 1)}
-            </option>
-          ))}
-        </Select>
-        <Select
-          value={selectedYear.toString()}
-          onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-        >
-          {[year - 1, year, year + 1].map((y) => (
-            <option key={y} value={y}>{y}</option>
-          ))}
-        </Select>
-        <Select value={storeId} onChange={(e) => setStoreId(e.target.value)}>
-          <option value="all">Todos los locales</option>
-          {stores.map((s) => (
-            <option key={s.id} value={s.id}>{s.name}</option>
-          ))}
-        </Select>
-      </div>
-
-      {/* Acceso rápido a pedido BLANCALUNA */}
+      {/* Order day banner */}
       {isOrderDay && (
-        <div className="mb-6 bg-brand-50 border border-brand-200 rounded-lg p-4 flex items-center justify-between">
-          <div>
-            <p className="font-semibold text-brand-800">
-              Hoy es {dayNames[dayOfWeek]} — dia de pedido BLANCALUNA
-            </p>
-            <p className="text-sm text-brand-600">
-              Genera la sugerencia de pedido para tu local
-            </p>
+        <div className="mb-6 rounded-xl border border-brand-500/30 bg-brand-500/10 p-4 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full bg-brand-500/20 flex items-center justify-center">
+              <span className="w-2 h-2 rounded-full bg-brand-400 animate-pulse inline-block" />
+            </div>
+            <div>
+              <p className="font-semibold text-brand-300 text-sm">
+                Hoy es {dayNames[dayOfWeek]} — día de pedido BLANCALUNA
+              </p>
+              <p className="text-xs text-brand-400/70">
+                Generá la sugerencia de pedido para tus locales
+              </p>
+            </div>
           </div>
           <Link href="/pedidos">
-            <Button>Ir a Pedidos</Button>
+            <Button size="sm" className="whitespace-nowrap">Ir a Pedidos →</Button>
           </Link>
         </div>
       )}
 
-      {/* KPIs */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-500">
-              Total del mes
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold">
-              {loading ? "..." : formatCurrency(summary?.grandTotal || 0)}
+      {/* KPI grid */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        {[
+          {
+            label: "Total del mes",
+            value: loading ? null : formatCurrency(summary?.grandTotal || 0),
+            icon: "💰",
+            color: "text-brand-400",
+          },
+          {
+            label: "Remitos cargados",
+            value: loading ? null : String(summary?.totalRemitos || 0),
+            icon: "📄",
+            color: "text-gold-400",
+          },
+          {
+            label: "Proveedores",
+            value: loading ? null : String(summary?.bySupplier?.length || 0),
+            icon: "🏭",
+            color: "text-sky-400",
+          },
+          {
+            label: "Locales",
+            value: loading ? null : String(summary?.byStore?.length || 0),
+            icon: "📍",
+            color: "text-emerald-400",
+          },
+        ].map((kpi) => (
+          <div
+            key={kpi.label}
+            className="rounded-xl border p-5"
+            style={{ background: "hsl(25, 10%, 10%)", borderColor: "hsl(25, 8%, 17%)" }}
+          >
+            <p className="text-xs text-white/40 font-medium uppercase tracking-wide mb-3">
+              {kpi.label}
             </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-500">
-              Remitos cargados
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold">
-              {loading ? "..." : summary?.totalRemitos || 0}
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-500">
-              Proveedores
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold">
-              {loading ? "..." : summary?.bySupplier?.length || 0}
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-500">
-              Locales
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold">
-              {loading ? "..." : summary?.byStore?.length || 0}
-            </p>
-          </CardContent>
-        </Card>
+            {loading ? (
+              <div className="h-7 w-24 rounded bg-white/5 animate-pulse" />
+            ) : (
+              <p className={`text-2xl font-bold ${kpi.color}`}>{kpi.value}</p>
+            )}
+          </div>
+        ))}
       </div>
 
-      {/* Totales por proveedor */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card>
+      {/* Main content grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 mb-6">
+        {/* Totales por proveedor — wider */}
+        <Card className="lg:col-span-3">
           <CardHeader>
             <CardTitle>Totales por proveedor</CardTitle>
           </CardHeader>
           <CardContent>
             {loading ? (
-              <p className="text-gray-400">Cargando...</p>
+              <div className="space-y-3">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="flex justify-between items-center">
+                    <div className="h-4 w-32 rounded bg-white/5 animate-pulse" />
+                    <div className="h-4 w-20 rounded bg-white/5 animate-pulse" />
+                  </div>
+                ))}
+              </div>
             ) : !summary?.bySupplier?.length ? (
-              <div className="text-center py-8">
-                <p className="text-gray-400 mb-3">Sin remitos este mes</p>
+              <div className="text-center py-10">
+                <p className="text-4xl mb-3">📄</p>
+                <p className="text-white/40 text-sm mb-4">Sin remitos este mes</p>
                 <Link href="/remitos">
-                  <Button variant="outline" size="sm">Cargar remito</Button>
+                  <Button variant="outline" size="sm">Cargar primer remito</Button>
                 </Link>
               </div>
             ) : (
               <div className="space-y-3">
-                {summary.bySupplier.map((s) => (
-                  <div key={s.supplierName} className="flex items-center justify-between">
-                    <div>
-                      <p className="font-medium">{s.supplierName}</p>
-                      <p className="text-xs text-gray-400">{s.count} remito{s.count > 1 ? "s" : ""}</p>
+                {summary.bySupplier.map((s) => {
+                  const pct = summary.grandTotal > 0 ? (s.total / summary.grandTotal) * 100 : 0;
+                  return (
+                    <div key={s.supplierName}>
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-medium text-white/80">{s.supplierName}</p>
+                          <span className="text-xs text-white/30">
+                            {s.count} remito{s.count > 1 ? "s" : ""}
+                          </span>
+                        </div>
+                        <p className="text-sm font-bold text-brand-400">
+                          {formatCurrency(s.total)}
+                        </p>
+                      </div>
+                      <div className="h-1 rounded-full bg-white/5 overflow-hidden">
+                        <div
+                          className="h-full rounded-full bg-gradient-to-r from-brand-500 to-gold-500"
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
                     </div>
-                    <p className="font-semibold">{formatCurrency(s.total)}</p>
-                  </div>
-                ))}
-                <div className="border-t pt-3 flex justify-between font-bold">
-                  <span>Total</span>
-                  <span>{formatCurrency(summary.grandTotal)}</span>
+                  );
+                })}
+                <div
+                  className="border-t pt-3 flex justify-between font-bold text-white"
+                  style={{ borderColor: "hsl(25, 8%, 17%)" }}
+                >
+                  <span className="text-sm">Total</span>
+                  <span className="text-brand-400">{formatCurrency(summary.grandTotal)}</span>
                 </div>
               </div>
             )}
           </CardContent>
         </Card>
 
-        <Card>
+        {/* Totales por local — narrower */}
+        <Card className="lg:col-span-2">
           <CardHeader>
-            <CardTitle>Totales por local</CardTitle>
+            <CardTitle>Por local</CardTitle>
           </CardHeader>
           <CardContent>
             {loading ? (
-              <p className="text-gray-400">Cargando...</p>
+              <div className="space-y-4">
+                {[1, 2].map((i) => (
+                  <div key={i} className="h-16 rounded-lg bg-white/5 animate-pulse" />
+                ))}
+              </div>
             ) : !summary?.byStore?.length ? (
-              <p className="text-gray-400 text-center py-8">Sin datos</p>
+              <p className="text-white/30 text-sm text-center py-8">Sin datos</p>
             ) : (
               <div className="space-y-3">
-                {summary.byStore.map((s) => (
-                  <div key={s.storeName} className="flex items-center justify-between">
-                    <div>
-                      <p className="font-medium">{s.storeName}</p>
-                      <p className="text-xs text-gray-400">{s.count} remito{s.count > 1 ? "s" : ""}</p>
+                {summary.byStore.map((s, idx) => {
+                  const pct = grandTotalPercent > 0 ? (s.total / grandTotalPercent) * 100 : 0;
+                  const colors = ["from-brand-500 to-gold-500", "from-sky-500 to-sky-400", "from-emerald-500 to-emerald-400"];
+                  return (
+                    <div
+                      key={s.storeName}
+                      className="p-3 rounded-lg"
+                      style={{ background: "hsl(25, 8%, 13%)", border: "1px solid hsl(25, 8%, 20%)" }}
+                    >
+                      <div className="flex justify-between mb-2">
+                        <p className="text-sm font-medium text-white/70 truncate pr-2">{s.storeName}</p>
+                        <Badge variant="default" className="shrink-0">
+                          {s.count} rem.
+                        </Badge>
+                      </div>
+                      <p className="text-lg font-bold text-white mb-2">{formatCurrency(s.total)}</p>
+                      <div className="h-1 rounded-full bg-white/5 overflow-hidden">
+                        <div
+                          className={`h-full rounded-full bg-gradient-to-r ${colors[idx % colors.length]}`}
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
                     </div>
-                    <p className="font-semibold">{formatCurrency(s.total)}</p>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </CardContent>
         </Card>
       </div>
 
-      {/* Links rápidos */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-6">
-        <Link href="/remitos" className="block">
-          <Card className="hover:border-brand-300 transition-colors cursor-pointer text-center p-4">
-            <p className="text-2xl mb-1">📄</p>
-            <p className="text-sm font-medium">Remitos</p>
-          </Card>
-        </Link>
-        <Link href="/eerr" className="block">
-          <Card className="hover:border-brand-300 transition-colors cursor-pointer text-center p-4">
-            <p className="text-2xl mb-1">📊</p>
-            <p className="text-sm font-medium">EERR</p>
-          </Card>
-        </Link>
-        <Link href="/stock" className="block">
-          <Card className="hover:border-brand-300 transition-colors cursor-pointer text-center p-4">
-            <p className="text-2xl mb-1">📦</p>
-            <p className="text-sm font-medium">Stock</p>
-          </Card>
-        </Link>
-        <Link href="/pedidos" className="block">
-          <Card className="hover:border-brand-300 transition-colors cursor-pointer text-center p-4">
-            <p className="text-2xl mb-1">🛒</p>
-            <p className="text-sm font-medium">Pedido BL</p>
-          </Card>
-        </Link>
+      {/* Quick access */}
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-widest text-white/25 mb-3">
+          Acceso rápido
+        </p>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {quickLinks.map((link) => (
+            <Link key={link.href} href={link.href} className="block group">
+              <div
+                className={`rounded-xl border p-4 bg-gradient-to-br ${link.color} ${link.border} transition-all duration-150 group-hover:scale-[1.02] group-hover:shadow-lg`}
+              >
+                <div className="text-white/60 mb-3 group-hover:text-white/80 transition-colors">
+                  {link.icon}
+                </div>
+                <p className="font-semibold text-white text-sm">{link.label}</p>
+                <p className="text-xs text-white/40 mt-0.5">{link.desc}</p>
+              </div>
+            </Link>
+          ))}
+        </div>
       </div>
     </div>
   );

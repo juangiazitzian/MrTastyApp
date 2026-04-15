@@ -2,28 +2,40 @@
 @tailwind components;
 @tailwind utilities;
 
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 20 14.3% 4.1%;
-    --card: 0 0% 100%;
-    --card-foreground: 20 14.3% 4.1%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 20 14.3% 4.1%;
-    --primary: 24 95% 50%;
-    --primary-foreground: 60 9.1% 97.8%;
-    --secondary: 60 4.8% 95.9%;
-    --secondary-foreground: 24 9.8% 10%;
-    --muted: 60 4.8% 95.9%;
-    --muted-foreground: 25 5.3% 44.7%;
-    --accent: 60 4.8% 95.9%;
-    --accent-foreground: 24 9.8% 10%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 60 9.1% 97.8%;
-    --border: 20 5.9% 90%;
-    --input: 20 5.9% 90%;
-    --ring: 24 95% 50%;
-    --radius: 0.5rem;
+    /* Dark theme — Mr Tasty brand */
+    --background:         20 14% 6%;      /* #0f0e0c — almost black, warm tint */
+    --foreground:         40 15% 92%;     /* #ede9e3 — warm off-white */
+
+    --card:               25 10% 10%;     /* #1c1a17 */
+    --card-foreground:    40 15% 92%;
+
+    --popover:            25 10% 10%;
+    --popover-foreground: 40 15% 92%;
+
+    --primary:            25 95% 53%;     /* brand orange #f97316 */
+    --primary-foreground: 0 0% 100%;
+
+    --secondary:          25 8% 16%;      /* dark surface */
+    --secondary-foreground: 40 15% 92%;
+
+    --muted:              25 8% 14%;
+    --muted-foreground:   30 10% 55%;     /* gray-ish */
+
+    --accent:             43 96% 56%;     /* gold #fbbf24 */
+    --accent-foreground:  20 14% 6%;
+
+    --destructive:        0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border:             25 8% 18%;      /* subtle warm border */
+    --input:              25 8% 14%;
+    --ring:               25 95% 53%;
+
+    --radius:             0.625rem;
   }
 }
 
@@ -31,16 +43,99 @@
   * {
     @apply border-border;
   }
+
+  html {
+    font-family: 'Inter', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
   body {
     @apply bg-background text-foreground;
+    background-color: hsl(20, 14%, 6%);
+    color: hsl(40, 15%, 92%);
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: hsl(25, 8%, 10%);
+  }
+  ::-webkit-scrollbar-thumb {
+    background: hsl(25, 8%, 22%);
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(25, 95%, 53%);
   }
 }
 
 @layer components {
+  /* ---- Cards ---- */
   .card {
-    @apply rounded-lg border bg-card text-card-foreground shadow-sm;
+    @apply rounded-xl border bg-card text-card-foreground;
+    border-color: hsl(25, 8%, 18%);
   }
+
+  /* ---- Badges ---- */
   .badge {
-    @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium;
+    @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold;
   }
+
+  /* ---- Orange gradient divider ---- */
+  .brand-divider {
+    @apply h-0.5 w-full;
+    background: linear-gradient(90deg, #f97316, #fbbf24, transparent);
+  }
+
+  /* ---- Glow button effect ---- */
+  .btn-glow {
+    box-shadow: 0 0 16px rgba(249, 115, 22, 0.35);
+  }
+  .btn-glow:hover {
+    box-shadow: 0 0 24px rgba(249, 115, 22, 0.55);
+  }
+
+  /* ---- Stat card ---- */
+  .stat-card {
+    @apply rounded-xl border p-5 flex flex-col gap-2;
+    background: hsl(25, 10%, 10%);
+    border-color: hsl(25, 8%, 18%);
+  }
+
+  /* ---- Active nav item ---- */
+  .nav-active {
+    background: linear-gradient(90deg, rgba(249,115,22,0.18) 0%, rgba(249,115,22,0.04) 100%);
+    border-left: 3px solid #f97316;
+    color: #fb923c;
+  }
+
+  /* ---- Table rows ---- */
+  .table-row-hover:hover {
+    background: hsl(25, 8%, 13%);
+  }
+}
+
+@layer utilities {
+  /* Gradient text utility */
+  .text-gradient-brand {
+    background: linear-gradient(135deg, #f97316 0%, #fbbf24 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* Orange glow */
+  .glow-orange {
+    box-shadow: 0 0 20px rgba(249, 115, 22, 0.3);
+  }
+
+  /* Surface backgrounds */
+  .bg-surface-900 { background-color: #0a0a09; }
+  .bg-surface-800 { background-color: #141310; }
+  .bg-surface-700 { background-color: #1c1916; }
+  .bg-surface-600 { background-color: #24201c; }
 }
