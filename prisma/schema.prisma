@@ -1,0 +1,262 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ═══════════════════════════════════════
+// LOCALES
+// ═══════════════════════════════════════
+
+model Store {
+  id        String   @id @default(cuid())
+  name      String
+  address   String?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  deliveryNotes          DeliveryNote[]
+  stockSnapshots         StockSnapshot[]
+  purchaseRecommendations PurchaseRecommendation[]
+  consumptionBaselines   ConsumptionBaseline[]
+}
+
+// ═══════════════════════════════════════
+// PROVEEDORES
+// ═══════════════════════════════════════
+
+model Supplier {
+  id             String   @id @default(cuid())
+  name           String   @unique
+  category       String   @default("MERCADERIA") // MERCADERIA, GASTOS_LOCAL, etc.
+  eerrLabel      String?  // nombre como aparece en el EERR
+  isBlancaluna   Boolean  @default(false)
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  aliases        SupplierAlias[]
+  deliveryNotes  DeliveryNote[]
+  products       SupplierProduct[]
+  eerrMappings   EerrMapping[]
+}
+
+model SupplierAlias {
+  id         String   @id @default(cuid())
+  alias      String   @unique
+  supplierId String
+  supplier   Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+}
+
+// ═══════════════════════════════════════
+// PRODUCTOS
+// ═══════════════════════════════════════
+
+model Product {
+  id              String   @id @default(cuid())
+  name            String   @unique
+  unit            String   @default("unidad") // unidad, kg, litro, pack, caja
+  packSize        Int      @default(1)        // cuántas unidades tiene un pack/caja
+  safetyStock     Float    @default(0)        // stock de seguridad
+  roundingUnit    Float    @default(1)        // redondeo de pedido
+  active          Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  aliases                  ProductAlias[]
+  suppliers                SupplierProduct[]
+  deliveryNoteItems        DeliveryNoteItem[]
+  stockSnapshotItems       StockSnapshotItem[]
+  consumptionBaselines     ConsumptionBaseline[]
+  recommendationItems      PurchaseRecommendationItem[]
+}
+
+model ProductAlias {
+  id        String   @id @default(cuid())
+  alias     String   @unique
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+}
+
+model SupplierProduct {
+  id         String   @id @default(cuid())
+  supplierId String
+  productId  String
+  price      Float?
+  supplier   Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@unique([supplierId, productId])
+}
+
+// ═══════════════════════════════════════
+// REMITOS
+// ═══════════════════════════════════════
+
+model DeliveryNote {
+  id              String   @id @default(cuid())
+  storeId         String
+  supplierId      String?
+  supplierRaw     String?  // nombre tal como vino del OCR
+  noteNumber      String?  // número de remito
+  date            DateTime
+  total           Float
+  currency        String   @default("ARS")
+  status          String   @default("pendiente") // pendiente, validado, rechazado, duplicado
+  imageUrl        String?  // path a la imagen original
+  ocrRawData      String?  // JSON con datos crudos del OCR
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  store    Store     @relation(fields: [storeId], references: [id])
+  supplier Supplier? @relation(fields: [supplierId], references: [id])
+  items    DeliveryNoteItem[]
+
+  @@index([storeId, date])
+  @@index([supplierId, date])
+}
+
+model DeliveryNoteItem {
+  id             String  @id @default(cuid())
+  deliveryNoteId String
+  productId      String?
+  productRaw     String? // nombre tal como vino del OCR
+  quantity       Float?
+  unitPrice      Float?
+  subtotal       Float?
+
+  deliveryNote DeliveryNote @relation(fields: [deliveryNoteId], references: [id], onDelete: Cascade)
+  product      Product?     @relation(fields: [productId], references: [id])
+}
+
+// ═══════════════════════════════════════
+// EERR MAPPING
+// ═══════════════════════════════════════
+
+model EerrMapping {
+  id           String   @id @default(cuid())
+  supplierId   String
+  eerrCategory String   // categoría del EERR: "Blanca Luna", "CDP", etc.
+  eerrSection  String   @default("MERCADERIA") // sección del EERR
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  supplier Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  @@unique([supplierId])
+}
+
+// ═══════════════════════════════════════
+// STOCK
+// ═══════════════════════════════════════
+
+model StockSnapshot {
+  id        String   @id @default(cuid())
+  storeId   String
+  date      DateTime
+  source    String   @default("manual") // manual, foto, importado
+  imageUrl  String?
+  notes     String?
+  createdAt DateTime @default(now())
+
+  store Store               @relation(fields: [storeId], references: [id])
+  items StockSnapshotItem[]
+
+  @@index([storeId, date])
+}
+
+model StockSnapshotItem {
+  id              String  @id @default(cuid())
+  stockSnapshotId String
+  productId       String
+  quantity        Float
+
+  stockSnapshot StockSnapshot @relation(fields: [stockSnapshotId], references: [id], onDelete: Cascade)
+  product       Product       @relation(fields: [productId], references: [id])
+
+  @@unique([stockSnapshotId, productId])
+}
+
+// ═══════════════════════════════════════
+// CONSUMO PROMEDIO
+// ═══════════════════════════════════════
+
+model ConsumptionBaseline {
+  id              String   @id @default(cuid())
+  storeId         String
+  productId       String
+  avgDailyUsage   Float    // promedio diario de uso
+  source          String   @default("manual") // manual, calculado
+  calculatedFrom  DateTime? // desde cuándo se calculó
+  calculatedTo    DateTime? // hasta cuándo
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  store   Store   @relation(fields: [storeId], references: [id])
+  product Product @relation(fields: [productId], references: [id])
+
+  @@unique([storeId, productId])
+}
+
+// ═══════════════════════════════════════
+// PEDIDOS / RECOMENDACIONES
+// ═══════════════════════════════════════
+
+model PurchaseRecommendation {
+  id              String   @id @default(cuid())
+  storeId         String
+  orderDate       DateTime // fecha en que se genera el pedido
+  deliveryDate    DateTime // fecha esperada de entrega
+  coverageDays    Int      // días de cobertura
+  status          String   @default("borrador") // borrador, confirmado, enviado
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  store Store                        @relation(fields: [storeId], references: [id])
+  items PurchaseRecommendationItem[]
+
+  @@index([storeId, orderDate])
+}
+
+model PurchaseRecommendationItem {
+  id                String  @id @default(cuid())
+  recommendationId  String
+  productId         String
+  stockActual       Float   // stock al momento
+  avgDailyUsage     Float   // promedio usado para el cálculo
+  coverageDays      Int     // días de cobertura
+  safetyStock       Float   // stock de seguridad usado
+  stockTarget       Float   // stock objetivo calculado
+  suggestedQty      Float   // cantidad sugerida
+  finalQty          Float   // cantidad final (puede ser editada)
+  roundingUnit      Float   @default(1)
+  calculationDetail String? // JSON con detalle del cálculo
+
+  recommendation PurchaseRecommendation @relation(fields: [recommendationId], references: [id], onDelete: Cascade)
+  product        Product                @relation(fields: [productId], references: [id])
+
+  @@unique([recommendationId, productId])
+}
+
+// ═══════════════════════════════════════
+// CONFIGURACIÓN
+// ═══════════════════════════════════════
+
+model AppSetting {
+  id    String @id @default(cuid())
+  key   String @unique
+  value String // JSON string
+  label String? // descripción legible
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
