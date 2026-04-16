@@ -8,6 +8,35 @@ datasource db {
 }
 
 // ═══════════════════════════════════════
+// AUTENTICACIÓN
+// ═══════════════════════════════════════
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  name         String?
+  passwordHash String    // PBKDF2-SHA256 via Web Crypto API
+  role         String    @default("admin") // admin, viewer
+  active       Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  sessions     Session[]
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+}
+
+// ═══════════════════════════════════════
 // LOCALES
 // ═══════════════════════════════════════
 
@@ -23,6 +52,7 @@ model Store {
   stockSnapshots         StockSnapshot[]
   purchaseRecommendations PurchaseRecommendation[]
   consumptionBaselines   ConsumptionBaseline[]
+  stockAdjustments       StockAdjustment[]
 }
 
 // ═══════════════════════════════════════
@@ -74,6 +104,7 @@ model Product {
   stockSnapshotItems       StockSnapshotItem[]
   consumptionBaselines     ConsumptionBaseline[]
   recommendationItems      PurchaseRecommendationItem[]
+  stockAdjustments         StockAdjustment[]
 }
 
 model ProductAlias {
@@ -277,4 +308,27 @@ model AppSetting {
   label String? // descripción legible
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+// ═══════════════════════════════════════
+// MERMAS Y AJUSTES DE STOCK
+// ═══════════════════════════════════════
+
+model StockAdjustment {
+  id        String   @id @default(cuid())
+  storeId   String
+  productId String
+  date      DateTime
+  quantity  Float    // positivo = ingreso/ajuste positivo, negativo = merma/pérdida
+  type      String   @default("merma") // merma, ajuste, rotura, vencimiento, transferencia
+  reason    String?  // motivo del ajuste
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  store   Store   @relation(fields: [storeId], references: [id])
+  product Product @relation(fields: [productId], references: [id])
+
+  @@index([storeId, date])
+  @@index([productId, date])
 }

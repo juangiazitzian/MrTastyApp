@@ -10,6 +10,7 @@ import { Dialog, DialogHeader, DialogTitle, DialogContent, DialogFooter } from "
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { PageHeader } from "@/components/layout/page-header";
 import { useToast } from "@/components/ui/toast";
+import { LineChart } from "@/components/charts/line-chart";
 import { formatDate, getTodayInputDate } from "@/lib/utils";
 
 interface StockItem {
@@ -40,6 +41,19 @@ export default function StockPage() {
   const [formDate, setFormDate] = useState<string>(getTodayInputDate());
   const [formNotes, setFormNotes] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [stockTrend, setStockTrend] = useState<{
+    labels: string[];
+    products: { id: string; name: string; unit: string; values: number[] }[];
+  } | null>(null);
+  const [selectedTrendProduct, setSelectedTrendProduct] = useState<string>("");
+
+  const loadStockTrend = async (storeId: string) => {
+    const data = await fetch(`/api/stock/trend?storeId=${storeId}&limit=10`).then((r) => r.json());
+    setStockTrend(data);
+    if (data.products?.length > 0 && !selectedTrendProduct) {
+      setSelectedTrendProduct(data.products[0].id);
+    }
+  };
 
   const loadSnapshots = async (storeId: string) => {
     setLoading(true);
@@ -59,6 +73,8 @@ export default function StockPage() {
   useEffect(() => {
     if (!selectedStore) return;
     loadSnapshots(selectedStore).catch(() => setLoading(false));
+    loadStockTrend(selectedStore).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedStore]);
 
   const buildEmptyItems = () =>
@@ -230,6 +246,48 @@ export default function StockPage() {
           {stores.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
         </Select>
       </div>
+
+      {/* Gráfico de evolución de stock */}
+      {stockTrend && stockTrend.products.length > 0 && (
+        <Card className="mb-6">
+          <CardHeader>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <CardTitle>Evolución de stock</CardTitle>
+              <Select
+                value={selectedTrendProduct}
+                onChange={(e) => setSelectedTrendProduct(e.target.value)}
+                className="w-48"
+              >
+                {stockTrend.products.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </Select>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {(() => {
+              const prod = stockTrend.products.find((p) => p.id === selectedTrendProduct);
+              if (!prod) return null;
+              const chartData = stockTrend.labels.map((label, i) => ({
+                label,
+                value: prod.values[i] ?? 0,
+              }));
+              return (
+                <LineChart
+                  data={chartData}
+                  height={160}
+                  color="hsl(200, 80%, 55%)"
+                  formatValue={(v) => `${v} ${prod.unit}`}
+                  showArea
+                />
+              );
+            })()}
+            <p className="text-xs text-white/30 mt-2">
+              Últimos {stockTrend.labels.length} registros de stock
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       {snapshots.length > 0 && (
         <Card className="mb-6">

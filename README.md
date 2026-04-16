@@ -1,11 +1,15 @@
 # Mr Tasty App
 
-Version actual: **0.3.2**
+Version actual: **0.4.0**
 
 MVP para gestion de dos locales de hamburgueseria:
 
 1. **Cierre mensual de remitos por proveedor** para completar el EERR
 2. **Recomendador de pedido BLANCALUNA** basado en stock + consumo promedio
+3. **Autenticacion** con usuario y contrasena (Web Crypto API)
+4. **Graficos** de tendencia mensual, stock y distribucion por proveedor
+5. **Mermas y ajustes** de stock con historial
+6. **Consumo promedio automatico** calculado desde snapshots de stock
 
 ## Stack
 
@@ -41,8 +45,18 @@ La app corre en [http://localhost:3000](http://localhost:3000).
 | `DOCUMENT_PARSER_PROVIDER` | `mock` | Parser de imagenes: `mock`, `openai`, `anthropic` |
 | `OPENAI_API_KEY` | - | API key para OCR con GPT-4 Vision |
 | `ANTHROPIC_API_KEY` | - | API key para OCR con Claude Vision |
+| `AUTH_SECRET` | - | Secreto para sesiones (cambiar en produccion) |
 | `DEFAULT_CURRENCY` | `ARS` | Moneda por defecto |
 | `TZ` | `America/Argentina/Buenos_Aires` | Timezone |
+
+## Credenciales por defecto
+
+Tras correr el seed, el usuario inicial es:
+
+- **Email:** `admin@mrtasty.com`
+- **Contrasena:** `mrtasty2024`
+
+**Importante:** cambiala desde Configuracion despues de la primera sesion.
 
 ## Comandos utiles
 
@@ -80,6 +94,20 @@ npm run db:seed      # Solo ejecutar el seed
 - Revision y correccion post-OCR.
 - Edicion y borrado de cargas de stock con confirmacion.
 - Historial de snapshots por local.
+- Grafico de evolucion de stock por producto.
+
+### Mermas y Ajustes
+
+- Registro de mermas, vencimientos, roturas y ajustes positivos/negativos.
+- Historial con filtros por local y producto.
+- Los ajustes son considerados en el calculo de consumo promedio.
+
+### Consumo Promedio Automatico
+
+- Boton "Recalcular consumo" en Pedidos BLANCALUNA.
+- Formula: consumo = stock_inicial + compras_periodo - stock_final - ajustes
+- Requiere al menos 2 snapshots de stock cargados.
+- Sobreescribe el promedio diario calculado, respetando el manual como fallback.
 
 ### Pedido BLANCALUNA
 
@@ -110,9 +138,10 @@ El sistema de parseo usa interfaces abstractas:
 Implementaciones disponibles:
 
 - `MockDocumentParser` / `MockStockImageParser`: datos de ejemplo para desarrollo.
+- `AnthropicDocumentParser` / `AnthropicStockImageParser`: usa Claude Vision (recomendado).
 - `OpenAIDocumentParser` / `OpenAIStockImageParser`: usa GPT-4 Vision.
 
-Para agregar un provider nuevo, crear una clase que implemente la interfaz y registrarla en `src/lib/parsers/index.ts`.
+Para usar Claude Vision: configurar `DOCUMENT_PARSER_PROVIDER=anthropic` y `ANTHROPIC_API_KEY` en el `.env`.
 
 ## Migracion a PostgreSQL
 

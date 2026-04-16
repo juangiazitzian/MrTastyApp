@@ -62,6 +62,29 @@ export default function PedidosPage() {
   const [coverageInfo, setCoverageInfo] = useState<{ days: number; label: string; coverageDayNumbers?: number[] } | null>(null);
   const [showDetail, setShowDetail] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [recalculating, setRecalculating] = useState(false);
+
+  const handleRecalcularConsumo = async () => {
+    if (!selectedStore) { addToast("Seleccioná un local", "error"); return; }
+    if (!window.confirm("¿Recalcular consumo promedio desde los snapshots de stock?\nEsto sobreescribirá los promedios calculados automáticamente.")) return;
+    setRecalculating(true);
+    try {
+      const res = await fetch("/api/stock/calcular-consumo", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ storeId: selectedStore }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        addToast(`Consumo recalculado: ${data.results?.length || 0} productos actualizados`, "success");
+      } else {
+        addToast(data.error || "Error: " + (data.error || "verificá que haya al menos 2 snapshots cargados"), "error");
+      }
+    } catch {
+      addToast("Error de conexión", "error");
+    }
+    setRecalculating(false);
+  };
 
   const today = new Date();
   const dayOfWeek = today.getDay();
@@ -178,7 +201,7 @@ export default function PedidosPage() {
       />
 
       {/* Selector de local y día */}
-      <div className="flex flex-wrap gap-3 mb-6">
+      <div className="flex flex-wrap gap-3 mb-4">
         <Select value={selectedStore} onChange={(e) => setSelectedStore(e.target.value)}>
           {stores.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
         </Select>
@@ -196,6 +219,17 @@ export default function PedidosPage() {
             </Button>
           ))}
         </div>
+
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleRecalcularConsumo}
+          disabled={recalculating}
+          className="ml-auto text-white/50 hover:text-white/80"
+          title="Recalcula el promedio diario de consumo a partir de snapshots de stock cargados"
+        >
+          {recalculating ? "Calculando…" : "↻ Recalcular consumo"}
+        </Button>
       </div>
 
       {/* Estado actual */}

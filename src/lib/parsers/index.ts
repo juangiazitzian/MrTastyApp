@@ -17,6 +17,10 @@ export function getDocumentParser(): DocumentParser {
   const provider = getProvider();
 
   switch (provider) {
+    case "anthropic": {
+      const { AnthropicDocumentParser } = require("./anthropic-parser");
+      return new AnthropicDocumentParser();
+    }
     case "openai": {
       const { OpenAIDocumentParser } = require("./openai-parser");
       return new OpenAIDocumentParser();
@@ -31,6 +35,10 @@ export function getStockImageParser(): StockImageParser {
   const provider = getProvider();
 
   switch (provider) {
+    case "anthropic": {
+      const { AnthropicStockImageParser } = require("./anthropic-parser");
+      return new AnthropicStockImageParser();
+    }
     case "openai": {
       const { OpenAIStockImageParser } = require("./openai-parser");
       return new OpenAIStockImageParser();

@@ -2,8 +2,39 @@ import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
+// ── Hash de contraseña con PBKDF2 (Web Crypto nativo Node 18+) ──
+async function hashPassword(password: string): Promise<string> {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const toHex = (buf: ArrayBuffer) =>
+    Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, "0")).join("");
+  const keyMaterial = await crypto.subtle.importKey(
+    "raw", new TextEncoder().encode(password), { name: "PBKDF2" }, false, ["deriveBits"]
+  );
+  const derived = await crypto.subtle.deriveBits(
+    { name: "PBKDF2", hash: "SHA-256", salt, iterations: 100_000 }, keyMaterial, 256
+  );
+  return `${toHex(salt)}:${toHex(derived)}`;
+}
+
 async function main() {
   console.log("Sembrando base de datos...");
+
+  // ── Usuario administrador por defecto ──
+  // Credenciales: admin@mrtasty.com / mrtasty2024
+  // Cambiá la contraseña desde Configuración después de la primera sesión
+  const passwordHash = await hashPassword("mrtasty2024");
+  await prisma.user.upsert({
+    where: { email: "admin@mrtasty.com" },
+    update: {},
+    create: {
+      id: "user-admin",
+      email: "admin@mrtasty.com",
+      name: "Admin",
+      passwordHash,
+      role: "admin",
+    },
+  });
+  console.log("  Usuario: admin@mrtasty.com / mrtasty2024 (¡cambiala luego!)");
 
   // ── Locales ──
   const balbin = await prisma.store.upsert({

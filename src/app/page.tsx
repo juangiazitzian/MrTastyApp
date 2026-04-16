@@ -7,21 +7,28 @@ import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/layout/page-header";
-import { formatCurrency, getMonthLabel, getCurrentYearMonth } from "@/lib/utils";
+import { LineChart } from "@/components/charts/line-chart";
+import { BarChart } from "@/components/charts/bar-chart";
+import { formatCurrency, getCurrentYearMonth } from "@/lib/utils";
 
 interface SummaryData {
   grandTotal: number;
   totalRemitos: number;
   bySupplier: { supplierName: string; total: number; count: number }[];
-  byStore:    { storeName: string;    total: number; count: number }[];
+  byStore: { storeName: string; total: number; count: number }[];
+}
+
+interface TrendPoint {
+  key: string;
+  label: string;
+  value: number;
 }
 
 const monthNames = [
-  "Enero","Febrero","Marzo","Abril","Mayo","Junio",
-  "Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre",
+  "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+  "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
 ];
 
-// Quick nav cards
 const quickLinks = [
   {
     href: "/remitos",
@@ -73,14 +80,27 @@ const quickLinks = [
   },
 ];
 
+const SUPPLIER_COLORS = [
+  "hsl(25, 90%, 55%)",
+  "hsl(45, 90%, 55%)",
+  "hsl(200, 80%, 55%)",
+  "hsl(140, 70%, 50%)",
+  "hsl(280, 70%, 60%)",
+  "hsl(0, 70%, 60%)",
+  "hsl(170, 70%, 50%)",
+  "hsl(320, 70%, 60%)",
+];
+
 export default function DashboardPage() {
   const { year, month } = getCurrentYearMonth();
   const [selectedMonth, setSelectedMonth] = useState(month);
-  const [selectedYear,  setSelectedYear]  = useState(year);
-  const [storeId,       setStoreId]       = useState("all");
-  const [stores,        setStores]        = useState<{ id: string; name: string }[]>([]);
-  const [summary,       setSummary]       = useState<SummaryData | null>(null);
-  const [loading,       setLoading]       = useState(true);
+  const [selectedYear, setSelectedYear] = useState(year);
+  const [storeId, setStoreId] = useState("all");
+  const [stores, setStores] = useState<{ id: string; name: string }[]>([]);
+  const [summary, setSummary] = useState<SummaryData | null>(null);
+  const [trend, setTrend] = useState<TrendPoint[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [trendLoading, setTrendLoading] = useState(true);
 
   useEffect(() => {
     fetch("/api/locales").then((r) => r.json()).then(setStores);
@@ -90,7 +110,7 @@ export default function DashboardPage() {
     setLoading(true);
     const params = new URLSearchParams({
       month: selectedMonth.toString(),
-      year:  selectedYear.toString(),
+      year: selectedYear.toString(),
     });
     if (storeId !== "all") params.set("storeId", storeId);
     fetch(`/api/remitos/summary?${params}`)
@@ -99,6 +119,16 @@ export default function DashboardPage() {
       .catch(() => setLoading(false));
   }, [selectedMonth, selectedYear, storeId]);
 
+  useEffect(() => {
+    setTrendLoading(true);
+    const params = new URLSearchParams({ months: "12" });
+    if (storeId !== "all") params.set("storeId", storeId);
+    fetch(`/api/remitos/trend?${params}`)
+      .then((r) => r.json())
+      .then((data) => { setTrend(data.trend || []); setTrendLoading(false); })
+      .catch(() => setTrendLoading(false));
+  }, [storeId]);
+
   const dayOfWeek = new Date().getDay();
   const isOrderDay = [1, 3, 5].includes(dayOfWeek);
   const dayNames: Record<number, string> = { 1: "Lunes", 3: "Miércoles", 5: "Viernes" };
@@ -106,6 +136,12 @@ export default function DashboardPage() {
   const grandTotalPercent = summary?.byStore?.length
     ? Math.max(...summary.byStore.map((s) => s.total))
     : 0;
+
+  const supplierBarData = (summary?.bySupplier ?? []).map((s, i) => ({
+    label: s.supplierName,
+    value: s.total,
+    color: SUPPLIER_COLORS[i % SUPPLIER_COLORS.length],
+  }));
 
   return (
     <div>
@@ -176,30 +212,10 @@ export default function DashboardPage() {
       {/* KPI grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         {[
-          {
-            label: "Total del mes",
-            value: loading ? null : formatCurrency(summary?.grandTotal || 0),
-            icon: "💰",
-            color: "text-brand-400",
-          },
-          {
-            label: "Remitos cargados",
-            value: loading ? null : String(summary?.totalRemitos || 0),
-            icon: "📄",
-            color: "text-gold-400",
-          },
-          {
-            label: "Proveedores",
-            value: loading ? null : String(summary?.bySupplier?.length || 0),
-            icon: "🏭",
-            color: "text-sky-400",
-          },
-          {
-            label: "Locales",
-            value: loading ? null : String(summary?.byStore?.length || 0),
-            icon: "📍",
-            color: "text-emerald-400",
-          },
+          { label: "Total del mes", value: loading ? null : formatCurrency(summary?.grandTotal || 0), icon: "💰", color: "text-brand-400" },
+          { label: "Remitos cargados", value: loading ? null : String(summary?.totalRemitos || 0), icon: "📄", color: "text-gold-400" },
+          { label: "Proveedores", value: loading ? null : String(summary?.bySupplier?.length || 0), icon: "🏭", color: "text-sky-400" },
+          { label: "Locales", value: loading ? null : String(summary?.byStore?.length || 0), icon: "📍", color: "text-emerald-400" },
         ].map((kpi) => (
           <div
             key={kpi.label}
@@ -218,9 +234,38 @@ export default function DashboardPage() {
         ))}
       </div>
 
+      {/* ── CHART: Tendencia 12 meses ── */}
+      <Card className="mb-6">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle>Evolución de compras — últimos 12 meses</CardTitle>
+            <span className="text-xs text-white/30">Mercadería total (ARS)</span>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {trendLoading ? (
+            <div className="h-44 rounded-lg bg-white/3 animate-pulse" />
+          ) : (
+            <LineChart
+              data={trend}
+              height={180}
+              formatValue={(v) =>
+                v >= 1_000_000
+                  ? `$${(v / 1_000_000).toFixed(1)}M`
+                  : v >= 1_000
+                  ? `$${(v / 1_000).toFixed(0)}k`
+                  : `$${v}`
+              }
+              color="hsl(25, 90%, 55%)"
+              showArea
+            />
+          )}
+        </CardContent>
+      </Card>
+
       {/* Main content grid */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 mb-6">
-        {/* Totales por proveedor — wider */}
+        {/* Totales por proveedor — con gráfico */}
         <Card className="lg:col-span-3">
           <CardHeader>
             <CardTitle>Totales por proveedor</CardTitle>
@@ -244,44 +289,49 @@ export default function DashboardPage() {
                 </Link>
               </div>
             ) : (
-              <div className="space-y-3">
-                {summary.bySupplier.map((s) => {
-                  const pct = summary.grandTotal > 0 ? (s.total / summary.grandTotal) * 100 : 0;
-                  return (
-                    <div key={s.supplierName}>
-                      <div className="flex items-center justify-between mb-1">
-                        <div className="flex items-center gap-2">
-                          <p className="text-sm font-medium text-white/80">{s.supplierName}</p>
-                          <span className="text-xs text-white/30">
-                            {s.count} remito{s.count > 1 ? "s" : ""}
-                          </span>
-                        </div>
-                        <p className="text-sm font-bold text-brand-400">
-                          {formatCurrency(s.total)}
-                        </p>
-                      </div>
-                      <div className="h-1 rounded-full bg-white/5 overflow-hidden">
+              <>
+                {/* Gráfico de barras horizontal */}
+                <BarChart
+                  data={supplierBarData}
+                  height={Math.max(120, supplierBarData.length * 36 + 40)}
+                  horizontal
+                  formatValue={(v) =>
+                    v >= 1_000_000
+                      ? `$${(v / 1_000_000).toFixed(1)}M`
+                      : v >= 1_000
+                      ? `$${(v / 1_000).toFixed(0)}k`
+                      : `$${v}`
+                  }
+                  className="mb-4"
+                />
+                {/* Lista detallada */}
+                <div className="space-y-2 border-t pt-3" style={{ borderColor: "hsl(25, 8%, 17%)" }}>
+                  {summary.bySupplier.map((s, i) => (
+                    <div key={s.supplierName} className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
                         <div
-                          className="h-full rounded-full bg-gradient-to-r from-brand-500 to-gold-500"
-                          style={{ width: `${pct}%` }}
+                          className="w-2.5 h-2.5 rounded-full shrink-0"
+                          style={{ background: SUPPLIER_COLORS[i % SUPPLIER_COLORS.length] }}
                         />
+                        <p className="text-sm text-white/70">{s.supplierName}</p>
+                        <span className="text-xs text-white/30">{s.count} rem.</span>
                       </div>
+                      <p className="text-sm font-bold" style={{ color: SUPPLIER_COLORS[i % SUPPLIER_COLORS.length] }}>
+                        {formatCurrency(s.total)}
+                      </p>
                     </div>
-                  );
-                })}
-                <div
-                  className="border-t pt-3 flex justify-between font-bold text-white"
-                  style={{ borderColor: "hsl(25, 8%, 17%)" }}
-                >
-                  <span className="text-sm">Total</span>
-                  <span className="text-brand-400">{formatCurrency(summary.grandTotal)}</span>
+                  ))}
+                  <div className="border-t pt-2 flex justify-between font-bold text-white" style={{ borderColor: "hsl(25, 8%, 17%)" }}>
+                    <span className="text-sm">Total</span>
+                    <span className="text-brand-400">{formatCurrency(summary.grandTotal)}</span>
+                  </div>
                 </div>
-              </div>
+              </>
             )}
           </CardContent>
         </Card>
 
-        {/* Totales por local — narrower */}
+        {/* Totales por local */}
         <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle>Por local</CardTitle>
@@ -296,33 +346,49 @@ export default function DashboardPage() {
             ) : !summary?.byStore?.length ? (
               <p className="text-white/30 text-sm text-center py-8">Sin datos</p>
             ) : (
-              <div className="space-y-3">
-                {summary.byStore.map((s, idx) => {
-                  const pct = grandTotalPercent > 0 ? (s.total / grandTotalPercent) * 100 : 0;
-                  const colors = ["from-brand-500 to-gold-500", "from-sky-500 to-sky-400", "from-emerald-500 to-emerald-400"];
-                  return (
-                    <div
-                      key={s.storeName}
-                      className="p-3 rounded-lg"
-                      style={{ background: "hsl(25, 8%, 13%)", border: "1px solid hsl(25, 8%, 20%)" }}
-                    >
-                      <div className="flex justify-between mb-2">
-                        <p className="text-sm font-medium text-white/70 truncate pr-2">{s.storeName}</p>
-                        <Badge variant="default" className="shrink-0">
-                          {s.count} rem.
-                        </Badge>
+              <>
+                <BarChart
+                  data={(summary?.byStore ?? []).map((s, i) => ({
+                    label: s.storeName.replace("San Miguel ", ""),
+                    value: s.total,
+                    color: ["hsl(25, 90%, 55%)", "hsl(200, 80%, 55%)"][i % 2],
+                  }))}
+                  height={120}
+                  formatValue={(v) =>
+                    v >= 1_000_000
+                      ? `$${(v / 1_000_000).toFixed(1)}M`
+                      : v >= 1_000
+                      ? `$${(v / 1_000).toFixed(0)}k`
+                      : `$${v}`
+                  }
+                  className="mb-4"
+                />
+                <div className="space-y-3">
+                  {summary.byStore.map((s, idx) => {
+                    const pct = grandTotalPercent > 0 ? (s.total / grandTotalPercent) * 100 : 0;
+                    const colors = ["from-brand-500 to-gold-500", "from-sky-500 to-sky-400"];
+                    return (
+                      <div
+                        key={s.storeName}
+                        className="p-3 rounded-lg"
+                        style={{ background: "hsl(25, 8%, 13%)", border: "1px solid hsl(25, 8%, 20%)" }}
+                      >
+                        <div className="flex justify-between mb-2">
+                          <p className="text-sm font-medium text-white/70 truncate pr-2">{s.storeName}</p>
+                          <Badge variant="default" className="shrink-0">{s.count} rem.</Badge>
+                        </div>
+                        <p className="text-lg font-bold text-white mb-2">{formatCurrency(s.total)}</p>
+                        <div className="h-1 rounded-full bg-white/5 overflow-hidden">
+                          <div
+                            className={`h-full rounded-full bg-gradient-to-r ${colors[idx % colors.length]}`}
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
                       </div>
-                      <p className="text-lg font-bold text-white mb-2">{formatCurrency(s.total)}</p>
-                      <div className="h-1 rounded-full bg-white/5 overflow-hidden">
-                        <div
-                          className={`h-full rounded-full bg-gradient-to-r ${colors[idx % colors.length]}`}
-                          style={{ width: `${pct}%` }}
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+                    );
+                  })}
+                </div>
+              </>
             )}
           </CardContent>
         </Card>
