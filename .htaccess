@@ -1,0 +1,34 @@
+# Mr Tasty App - Apache configuration
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Allow direct access to real files and folders (JS, CSS, images, PHP APIs)
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+
+    # All non-existing routes go to index.php (SPA fallback)
+    RewriteRule . index.php [L,QSA]
+</IfModule>
+
+# PHP configuration
+<IfModule mod_php.c>
+    php_value upload_max_filesize 10M
+    php_value post_max_size 12M
+    php_value max_execution_time 60
+    php_value memory_limit 128M
+    php_value default_charset utf-8
+</IfModule>
+
+# Security headers
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "SAMEORIGIN"
+    Header always set X-XSS-Protection "1; mode=block"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>
+
+# Compression
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/plain text/xml text/javascript text/css application/json application/javascript
+</IfModule>
