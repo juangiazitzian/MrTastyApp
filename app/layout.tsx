@@ -13,8 +13,8 @@ export const metadata: Metadata = {
     "codex-preview": "development",
   },
   icons: {
-    icon: "/brand/logo.png",
-    shortcut: "/brand/logo.png",
+    icon: "/favicon.svg",
+    shortcut: "/favicon.svg",
     apple: "/brand/logo.png",
   },
 };
