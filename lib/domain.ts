@@ -58,4 +58,4 @@ export function suggestOrder(demand: number | null, stock: number | null, incomi
     return null; return Math.ceil(Math.max(0, demand * (1 + safetyPct / 100) - stock - incoming) / pack) * pack; }
 export function invoiceDedupe(p: Record<string, unknown>) { return `${p.cuit}:${p.documentType}:${String(p.number).replace(/\D/g, '').padStart(13, '0')}`; }
 export function signedAmount(p: Record<string, unknown>) { return Number(p.amount) * (String(p.documentType).startsWith('Nota de crédito') ? -1 : 1); }
-export function safeCsv(rows: unknown[][]) { return '\uFEFF' + rows.map(row => row.map(v => { const s = String(v ?? ''); return '"' + (/^[=+\-@\t\r]/.test(s) ? "'" + s : s).replaceAll('"', '""') + '"'; }).join(';')).join('\r\n'); }
+export function safeCsv(rows: unknown[][]) { return '\uFEFF' + rows.map(row => row.map(v => { const s = String(v ?? ''); return '"' + (typeof v !== 'number' && /^[=+\-@\t\r]/.test(s) ? "'" + s : s).replaceAll('"', '""') + '"'; }).join(';')).join('\r\n'); }

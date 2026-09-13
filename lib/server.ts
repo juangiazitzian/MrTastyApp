@@ -1,17 +1,19 @@
-import { env } from 'cloudflare:workers';
-import { getChatGPTUser } from '@/app/chatgpt-auth';
+import { auth } from '@/auth';
+import { database } from './db';
+import { bucket } from './blob';
 import type { StoredRecord } from './domain';
 export class HttpError extends Error {
     constructor(public status: number, message: string) { super(message); }
 }
-export function db() { if (!env.DB)
-    throw new HttpError(503, 'La base de datos todavía no está disponible.'); return env.DB; }
-export function bucket() { if (!env.BUCKET)
-    throw new HttpError(503, 'El archivo no pudo guardarse: almacenamiento no disponible.'); return env.BUCKET; }
+export function db() { return database(); }
+export { bucket };
 export async function authorize(request: Request, write = false) {
-    const user = await getChatGPTUser();
-    if (!user)
+    const session = await auth();
+    const email = session?.user?.email;
+    if (!email)
         throw new HttpError(401, 'Iniciá sesión para guardar o consultar registros.');
+    // Se conserva la forma que ya esperaba el resto de la app.
+    const user = { userId: email, displayName: session?.user?.name ?? email, email };
     if (write) {
         const origin = request.headers.get('origin');
         if (!origin || origin !== new URL(request.url).origin)

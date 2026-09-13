@@ -61,7 +61,7 @@ finally {
 } } useEffect(() => { void reload(); }, [kind]); return { records, error, loading, reload }; }
 function LoadError({ error }: {
     error: string;
-}) { return error ? <Note>{error} {error.includes('sesión') && <a href="/signin-with-chatgpt?return_to=/" target="_top">Iniciar sesión</a>}</Note> : null; }
+}) { return error ? <Note>{error} {error.includes('sesión') && <a href="/login">Iniciar sesión</a>}</Note> : null; }
 async function saveRecord(kind: Kind, payload: unknown, existing?: StoredRecord) { const parsed = schemas[kind].safeParse(payload); if (!parsed.success)
     throw new Error(parsed.error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join(' · ')); return api('/api/records', { kind, payload: parsed.data, ...(existing ? { id: existing.id, version: existing.version } : {}) }); }
 export function Orders({ location, counts }: {

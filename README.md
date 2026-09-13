@@ -1,63 +1,74 @@
-# Tasty · Operaciones
+# Mr Tasty · Operaciones
 
-Aplicación privada para los locales Mr Tasty de Balbín y Perón, San Miguel. Incluye datos importados de los cuatro Excel entregados y de las dos planillas de consumo verificadas durante la construcción.
+Aplicación privada de gestión para los dos locales Mr Tasty de San Miguel: **Balbín** (San Miguel 1) y **Perón** (San Miguel 2). Reúne pedidos a proveedores, carga de facturas, estado de resultados y búsqueda de personal en un solo lugar, sobre los datos que el equipo ya carga en Google Sheets.
 
-## Uso
+## Qué hace cada sección
 
-- **Resumen:** facturación, gastos, resultados y márgenes históricos; comparación por local, distribución de gastos y consumo por día de la semana. Muestra por separado los movimientos nuevos del mes cargados en la app.
-- **Pedidos y stock:** stock actual por insumo, proveedor, tamaño del bulto, demora, frecuencia, margen de seguridad y entregas pendientes. Sugiere compras usando las últimas ocho semanas por día de la semana. Guarda un borrador y exporta CSV; no envía pedidos al proveedor.
-- **Facturas:** originales privados en almacenamiento persistente, extracción de texto, revisión manual, categorías, notas de crédito y prevención de duplicados. Las revisadas se incluyen en resultados. Sin conexión de Google, quedan pendientes de exportación.
-- **Estado de resultados:** histórico con referencias a celdas y fórmulas de origen; cierre preliminar con facturas revisadas, ventas por canal y gastos manuales. Permite ventas diarias o totales mensuales, sin mezclarlos en el mismo local, canal y mes. Exportación CSV.
-- **Candidatos:** búsqueda, filtros, datos de contacto y estados de selección. Importa correos de CV en tandas de 25, con rangos de seis meses, un año o todo el historial. Lee adjuntos PDF, JPG, PNG, TXT o Word desde una ficha y los hace buscables. La selección corresponde al equipo; no hay puntajes automáticos ni envío de correos.
-- **Conexiones:** configuración y comprobación del acceso a Google; actualización de consumos y EERR.
+**Resumen** muestra facturación, gastos, resultado y margen del período elegido, con la comparación mensual entre locales, la distribución del gasto por categoría y el consumo medio por día de la semana. Separa los movimientos históricos importados de los que el equipo carga en la app.
 
-## Activación pendiente
+**Pedidos y stock** calcula cuánto pedir de cada insumo a partir del consumo de las últimas ocho semanas, comparando el mismo día de la semana. Toma en cuenta el stock contado, el bulto del proveedor, la demora de entrega, la frecuencia de pedido, el margen de seguridad y las entregas pendientes. Guarda el pedido como borrador y lo exporta en CSV; el envío al proveedor queda a cargo del equipo.
 
-La aplicación puede guardar movimientos sin Google. Para habilitar el OCR, Gmail y la escritura/lectura de planillas, instalar y autorizar el conector desde **mrtastysanmiguel@gmail.com**, con permiso sobre las cuatro planillas. Los enlaces de los EERR privados aún deben incorporarse a las propiedades del conector.
+**Facturas** guarda el original del comprobante, extrae su texto por OCR para acelerar la carga y exige revisión manual antes de contabilizarlo. Contempla notas de crédito, que restan, y bloquea cargar dos veces el mismo CUIT, tipo y número.
 
-Las instrucciones completas y los archivos están en `public/google-setup.html`, accesibles desde Conexiones. El conector no está instalado ni autorizado al entregar el código. Sus pruebas locales usan servicios simulados; la extracción real, los permisos de Google y la exportación real deben verificarse después de autorizar.
+**Estado de resultados** combina el histórico importado de las planillas con el cierre preliminar del mes en curso. Admite ventas diarias o totales mensuales, pero no permite mezclarlos dentro del mismo local, canal y mes.
 
-Los consumos se actualizan al abrir la app y cada 15 minutos mientras está abierta, tras configurar la conexión. Los EERR históricos y Gmail se actualizan desde sus botones. No existe todavía un servicio de sincronización cuando la app está cerrada.
+**Candidatos** importa los currículums que llegan por correo, lee los adjuntos y los hace buscables. La selección la hace el equipo: no hay puntajes automáticos ni envío de respuestas.
 
-Falta cargar los proveedores, bultos y plazos reales que el usuario enviará en fotos, y contar el stock actual. No se inventaron parámetros de proveedores. La cobertura actual comprende pan, papas y medallones de 80 g y 55 g, presentes en las hojas de consumo.
+**Conexiones** configura y comprueba el acceso a Google, y dispara la actualización de consumos y estados de resultados.
 
-El Site se publica inicialmente privado para su propietario. El acceso del equipo deberá configurarse con sus cuentas cuando se indiquen. Las planillas mantienen sus permisos de Google; no necesitan ser públicas.
+## Puesta en marcha
 
-## Fuentes y criterios
+Requiere Node.js 22.13 o superior.
 
-- San Miguel / San Miguel 1 → **Balbín**; San Miguel 2 / II → **Perón**.
-- Conteo es **consumo diario**, confirmado por el usuario. Los blancos, `?`, anotaciones y fechas duplicadas no se convierten en consumo cero.
-- Las pestañas antiguas de stock dicen «STOCK MUNRO» y fueron excluidas de las sugerencias. La app exige un conteo actual de hasta 24 horas.
-- Se requiere al menos 70 % de cobertura de 56 días, último consumo de hasta cuatro días y dos observaciones por día de semana proyectado. Sin cobertura suficiente no se muestra una cantidad sugerida.
-- Las papas se expresan en bolsas, como la fuente. Los dos tamaños de carne se mantienen separados.
-- Los EERR tienen 14 períodos/locales importados. Julio de 2026 es el último período común con los principales conceptos cargados en los archivos entregados. Agosto está incompleto. Febrero de Balbín contiene versiones alternativas y enero tiene una diferencia entre canales y ventas; las alertas se conservan.
-- «Mercadería» sigue las compras del EERR; no equivale al costo de consumo ajustado por inventario.
-- Una importación completa no implica cierre contable aprobado. No se suman facturas nuevas a los EERR históricos porque podrían estar contabilizadas allí.
-- El conector escribe solamente en las pestañas nuevas `Registro App` y `EERR App AAAA-MM`; preserva las pestañas originales. La app consulta su propio libro de movimientos y el histórico original, sin importar de vuelta cambios manuales hechos en `Registro App`.
-- Para corregir un registro ya exportado se necesita un ajuste documentado; se conserva el registro original. Los borradores y las ventas/gastos que aún no iniciaron sincronización pueden editarse.
+```bash
+npm install
+cp .env.example .env.local   # completar los valores
+npm run db:migrate           # crea las tablas
+npm run dev                  # http://localhost:3000
+```
 
-El resumen curado está en `data/reviewed.json`. Las pruebas de conciliación usan `tests/fixtures/eerr.json`. Los volcados originales y archivos temporales locales están excluidos de Git.
+Para desarrollo alcanza con una base SQLite en un archivo: dejando `TURSO_DATABASE_URL="file:./local.db"` no hace falta cuenta ni token. Generá el secreto de sesión con `npx auth secret` y cargá tu propio correo en `ALLOWED_EMAILS`, porque si esa variable queda vacía no entra nadie.
 
-## Identidad visual
+Para entrar sin dar de alta un cliente OAuth de Google, poné `DEV_AUTH_BYPASS="1"` en `.env.local`: la pantalla de acceso suma un botón de modo desarrollo. Depende de dos condiciones simultáneas, que `NODE_ENV` no sea `production` y que la variable esté puesta, así que el sitio publicado en Vercel nunca lo expone.
 
-Se investigaron [Mr Tasty](https://mrtasty.com.ar/) y [su sitio de franquicias](https://franquiciasmrtasty.com/). Logo oficial, naranja `#F28E19`, grafito y fondos claros. Tipografía de sistema; no se distribuyen las fuentes comerciales del sitio oficial. Incluye estados de foco, hover, transiciones, animación de entrada y respeto de la preferencia de reducir movimiento.
+Otros comandos: `npm run build`, `npm test`, `npx tsc --noEmit`, `npm run db:generate` para crear una migración nueva tras cambiar `db/schema.ts`.
 
-## Implementación
+## Infraestructura
 
-React 19, Vinext/Vite, componentes Radix/shadcn, Recharts, Cloudflare Worker, D1 y R2. La configuración de Sites está en `.openai/hosting.json`. Se preserva el modelo de autenticación de Sites; todas las rutas de datos requieren sesión y las mutaciones comprueban el origen.
+Next.js 16 con App Router y React 19, desplegado en **Vercel**. Los datos viven en **Turso** (SQLite gestionado, mismo motor que la app usaba originalmente, con las migraciones de `drizzle/` sin cambios). Los originales de las facturas van a **Vercel Blob en modo privado**, sin URL pública. El acceso se resuelve con **Auth.js y cuenta de Google**, restringido a la lista de `ALLOWED_EMAILS`.
 
-Los secretos del conector se guardan del lado servidor y no se retornan en las APIs. Apps Script exige HMAC SHA-256, ventana de cinco minutos y nonce de un solo uso. Usa permisos de Gmail de solo lectura y `drive.file` para documentos temporales del OCR. El conector elimina únicamente los documentos temporales que él mismo crea. Los originales cargados en la app permanecen en R2.
+`lib/db.ts` expone la interfaz de Cloudflare D1 sobre libSQL. Es deliberado: permitió migrar de plataforma sin reescribir ni una consulta ni una migración, y deja la puerta abierta a cambiar de proveedor de nuevo tocando un solo archivo.
 
-La sincronización de registros es idempotente por ID. Antes del envío se fija el contenido para impedir cambios concurrentes entre el registro local y Sheets. Ante una respuesta incierta se puede reintentar; no se debe editar un registro cuya sincronización comenzó. Los registros guardan versión y una bitácora de creación/actualización.
+La conexión con Google Sheets y Gmail pasa por un Apps Script propio, firmado con HMAC SHA-256, con ventana de cinco minutos y nonce de un solo uso. Usa permisos de Gmail de sólo lectura y `drive.file` para los documentos temporales del OCR, que el propio conector borra. Escribe únicamente en las pestañas nuevas `Registro App` y `EERR App AAAA-MM`: las planillas originales quedan intactas.
 
-Límites explícitos: 8 MB por archivo; tres adjuntos compatibles por lectura de correo; hasta 10.000 registros por tipo, con error en lugar de mostrar totales recortados; 5.000 filas de conteo; 60 pestañas de EERR por local y sus primeras 100 filas. Ampliar o paginar antes de superar esos límites. Un PDF no legible por OCR se conserva para revisión manual.
+La sincronización de registros es idempotente por ID. Antes de enviar, el contenido se fija para impedir cambios concurrentes entre el registro local y Sheets; ante una respuesta incierta se puede reintentar sin duplicar. Un registro ya exportado no se edita: se corrige con un ajuste documentado, conservando el original.
 
-## Desarrollo y validación
+Límites vigentes: 8 MB por archivo, tres adjuntos por lectura de correo, 10.000 registros por tipo, 5.000 filas de conteo y 60 pestañas de EERR por local. Al superarlos la app devuelve error en lugar de mostrar totales recortados.
 
-Node.js >=22.13.0. Comandos del proyecto: `npm run install:ci`, `npm run dev`, `npm run build`, `npm test`, `npx tsc --noEmit`. La vista local usa `http://127.0.0.1:5173/`. El perfil local de Sites simula el inicio de sesión solo en loopback; esa simulación queda fuera de la compilación de producción.
+## Variables de entorno
 
-Migraciones D1 generadas en `drizzle/`. El proceso de publicación de Sites empaqueta Worker, recursos estáticos y migraciones. La base local y sus registros temporales de prueba no se publican.
+Se cargan en Vercel, en *Project → Settings → Environment Variables*, y nunca se versionan. `TURSO_DATABASE_URL` y `TURSO_AUTH_TOKEN` para la base; `AUTH_SECRET`, `AUTH_GOOGLE_ID` y `AUTH_GOOGLE_SECRET` para la sesión; `ALLOWED_EMAILS` con los correos habilitados separados por coma; `BLOB_READ_WRITE_TOKEN` lo inyecta Vercel al crear el Blob store. El detalle está en `.env.example`.
 
-Las pruebas verifican cálculo de pedidos, tratamiento de faltantes/cero, fechas, importes, conciliación con los Excel, duplicados, notas de crédito, exportación CSV segura, firma/repetición del conector, cuenta autorizada y lectura/paginación de Gmail con simuladores. Las comprobaciones HTTP locales cubren autenticación, guardado persistente, versiones concurrentes, archivos y el rechazo de mezcla de ventas mensuales/diarias. No se realizó una sesión de pruebas visuales de navegador ni una autorización real de Google.
+En Google Cloud Console, el cliente OAuth necesita como URI de redirección `https://TU-DOMINIO/api/auth/callback/google`, y `http://localhost:3000/api/auth/callback/google` para trabajar en local.
 
-Documentación de las integraciones: [Apps Script web apps](https://developers.google.com/apps-script/guides/web), [conversión/OCR de Drive](https://developers.google.com/workspace/drive/api/guides/manage-uploads), [adjuntos de Gmail](https://developers.google.com/workspace/gmail/api/reference/rest/v1/users.messages.attachments/get).
+## Criterios sobre los datos
+
+San Miguel y San Miguel 1 son **Balbín**; San Miguel 2 y San Miguel II son **Perón**.
+
+La hoja «Conteo» registra **consumo diario**, confirmado por el usuario. Los blancos, los `?`, las anotaciones y las fechas duplicadas no se convierten en consumo cero, porque tratarlos así hundiría los promedios y con ellos las sugerencias de pedido.
+
+Las pestañas antiguas de stock dicen «STOCK MUNRO» y quedaron excluidas del cálculo: son de otro local y usarlas produciría pedidos mal dimensionados. La app exige un conteo propio de menos de 24 horas.
+
+Una sugerencia de pedido sólo se muestra con al menos 70 % de cobertura sobre 56 días, dos observaciones para el día de la semana proyectado y consumo registrado en los últimos cuatro días. Sin esa base no se arriesga una cantidad. Las papas se expresan en bolsas, como en la fuente, y los dos tamaños de carne se mantienen separados.
+
+Hay 14 períodos por local importados de los estados de resultados. Julio de 2026 es el último mes completo en ambos locales; agosto está incompleto. Febrero de Balbín tiene versiones alternativas y enero muestra una diferencia entre canales y ventas: esas alertas se conservan a propósito en lugar de emprolijar los números.
+
+«Mercadería» sigue las compras del estado de resultados y no equivale al costo de consumo ajustado por inventario. Que una importación esté completa no significa que el cierre contable esté aprobado. Las facturas nuevas no se suman a los estados históricos, porque podrían ya estar contabilizadas ahí.
+
+El resumen curado está en `data/reviewed.json` y las pruebas de conciliación usan `tests/fixtures/eerr.json`.
+
+## Lo que falta
+
+Cargar los proveedores reales con su bulto y sus plazos, y hacer el primer conteo de stock: sin eso la app no sugiere cantidades, y no se inventaron parámetros. La cobertura actual abarca pan, papas y medallones de 80 g y 55 g, que son los insumos presentes en las hojas de consumo.
+
+El conector de Google debe instalarse y autorizarse desde `mrtastysanmiguel@gmail.com`, con permiso sobre las cuatro planillas; las instrucciones completas están en `public/google-setup.html`, accesibles desde Conexiones. Los consumos se actualizan al abrir la app y cada 15 minutos mientras esté abierta; los estados históricos y Gmail se actualizan desde sus botones. Todavía no hay sincronización con la app cerrada.
