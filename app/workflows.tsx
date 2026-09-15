@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Table, TableHeader, TableHead, TableRow, TableCell, TableBody } from '@/components/ui/table';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { categories, Count, forecast, Kind, safeCsv, schemas, signedAmount, skus, Sku, StoredRecord, suggestOrder, todayAR } from '@/lib/domain';
+import { averageDailyUse, categories, consumptionSegments, Count, forecast, Kind, safeCsv, schemas, signedAmount, skus, Sku, StoredRecord, suggestOrder, Supplier, suppliers, todayAR } from '@/lib/domain';
 import snapshot from '@/data/reviewed.json';
 import type { Finance } from '@/lib/imports';
 const names: Record<string, string> = { balbin: 'Balbín', peron: 'Perón', both: 'Ambos', all: 'Ambos locales' };
@@ -64,6 +64,95 @@ function LoadError({ error }: {
 }) { return error ? <Note>{error} {error.includes('sesión') && <a href="/login">Iniciar sesión</a>}</Note> : null; }
 async function saveRecord(kind: Kind, payload: unknown, existing?: StoredRecord) { const parsed = schemas[kind].safeParse(payload); if (!parsed.success)
     throw new Error(parsed.error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join(' · ')); return api('/api/records', { kind, payload: parsed.data, ...(existing ? { id: existing.id, version: existing.version } : {}) }); }
+/** El mismo margen de seguridad que ya traía por defecto el formulario de insumos. */
+const SAFETY_PCT = 15;
+
+/**
+ * Fecha en que entró un pedido. Si no se registró, se estima sumando el plazo
+ * de entrega del proveedor: sin fecha de ingreso no se puede saber cuánto se
+ * consumió entre dos conteos.
+ */
+function deliveryDate(payload: Record<string, unknown>, leadDays: number) {
+    if (payload.deliveredAt)
+        return String(payload.deliveredAt);
+    const d = new Date(String(payload.createdFor) + 'T12:00:00Z');
+    d.setUTCDate(d.getUTCDate() + leadDays);
+    return d.toISOString().slice(0, 10);
+}
+
+function localInput(d = new Date()) { return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16); }
+
+/**
+ * Sección de un proveedor.
+ *
+ * Estos insumos no pasan por la hoja «Conteo», así que el consumo se deduce de
+ * los conteos que carga el equipo y de las entregas ya registradas. Mientras no
+ * haya dos conteos, la pantalla dice que faltan datos en vez de sugerir una
+ * cantidad sin respaldo.
+ */
+function SupplierSection({ supplier, chosen, stock, orders }: {
+    supplier: Supplier;
+    chosen: string;
+    stock: ReturnType<typeof useRecords>;
+    orders: ReturnType<typeof useRecords>;
+}) {
+    const [sheet, setSheet] = useState<'count' | 'order' | null>(null);
+    const [draft, setDraft] = useState<Record<string, string>>({});
+    const [saving, setSaving] = useState(false);
+    const today = todayAR();
+    const cover = supplier.leadDays + supplier.cycleDays;
+    // Un conteo más viejo que un ciclo ya no describe el stock de hoy.
+    const staleBefore = new Date(Date.parse(today + 'T12:00:00Z') - supplier.cycleDays * 864e5).toISOString().slice(0, 10);
+    const rows = supplier.items.map(item => {
+        const points = stock.records.filter(r => r.payload.location === chosen && r.payload.sku === item.id).map(r => ({ at: String(r.payload.countedAt), quantity: Number(r.payload.quantity) }));
+        const deliveries = orders.records.filter(r => r.payload.location === chosen).flatMap(r => ((r.payload.lines ?? []) as { sku: string; quantity: number }[]).filter(l => l.sku === item.id).map(l => ({ at: deliveryDate(r.payload, supplier.leadDays), quantity: Number(l.quantity) })));
+        const avg = averageDailyUse(consumptionSegments(points, deliveries));
+        const last = [...points].sort((a, b) => b.at.localeCompare(a.at))[0] ?? null;
+        const incoming = deliveries.filter(d => d.at > today).reduce((a, d) => a + d.quantity, 0);
+        const demand = avg.perDay === null ? null : avg.perDay * cover;
+        const qty = last ? suggestOrder(demand, last.quantity, incoming, item.pack, SAFETY_PCT) : null;
+        return { item, last, avg, incoming, qty, stale: !!last && last.at.slice(0, 10) < staleBefore };
+    });
+    const history = orders.records.filter(r => r.payload.location === chosen && ((r.payload.lines ?? []) as { supplier: string }[]).some(l => l.supplier === supplier.label)).sort((a, b) => String(b.payload.createdFor).localeCompare(String(a.payload.createdFor)));
+    function openCount() { setDraft({ countedAt: localInput(), ...Object.fromEntries(supplier.items.map(i => [i.id, ''])) }); setSheet('count'); }
+    function openOrder(prefill: boolean) { setDraft({ createdFor: today, deliveredAt: '', status: prefill ? 'draft' : 'received', ...Object.fromEntries(rows.map(r => [r.item.id, prefill && r.qty ? String(r.qty / r.item.pack) : ''])) }); setSheet('order'); }
+    function field(k: string, v: string) { setDraft(old => ({ ...old, [k]: v })); }
+    async function saveCount(e: FormEvent) { e.preventDefault(); setSaving(true); try {
+        const at = new Date(draft.countedAt).toISOString();
+        const cargados = supplier.items.filter(i => draft[i.id] !== '' && draft[i.id] !== undefined);
+        if (!cargados.length)
+            throw new Error('Cargá al menos un insumo.');
+        for (const i of cargados)
+            await saveRecord('stock', { location: chosen, sku: i.id, quantity: Number(draft[i.id]), countedAt: at, notes: '' });
+        await stock.reload();
+        setSheet(null);
+        toast.success(`Conteo guardado · ${cargados.length} insumos`);
+    }
+    catch (e) {
+        toast.error((e as Error).message);
+    }
+    finally {
+        setSaving(false);
+    } }
+    async function saveOrder(e: FormEvent) { e.preventDefault(); setSaving(true); try {
+        const lines = supplier.items.filter(i => Number(draft[i.id]) > 0).map(i => ({ sku: i.id, supplier: supplier.label, quantity: Number(draft[i.id]) * i.pack, unit: i.unit, pack: i.pack }));
+        if (!lines.length)
+            throw new Error('Cargá al menos un bulto.');
+        await saveRecord('order', { location: chosen, lines, status: draft.status === 'received' ? 'received' : 'draft', createdFor: draft.createdFor, ...(draft.deliveredAt ? { deliveredAt: draft.deliveredAt } : {}) });
+        await orders.reload();
+        setSheet(null);
+        toast.success('Pedido guardado');
+    }
+    catch (e) {
+        toast.error((e as Error).message);
+    }
+    finally {
+        setSaving(false);
+    } }
+    function exportCsv() { const pedido = rows.filter(r => r.qty !== null && r.qty > 0); download(`pedido-${supplier.id}-${names[chosen]}-${today}.csv`, [['Código', 'Producto', 'Bultos', 'Unidades por bulto', 'Unidades totales'], ...pedido.map(r => [r.item.code, r.item.product, r.qty! / r.item.pack, r.item.pack, r.qty!])]); }
+    return <section className="panel"><div className="panel-heading"><div><h2>{supplier.label}</h2><p>Pedido cada {supplier.cycleDays} días · entrega en {supplier.leadDays} · la sugerencia cubre {cover} días con {SAFETY_PCT}% de margen</p></div><div className="inline-actions"><button className="primary" onClick={openCount}><Plus size={15}/> Cargar conteo</button><button className="secondary" onClick={() => openOrder(true)}><Package size={15}/> Armar pedido</button><button className="secondary" onClick={() => openOrder(false)}>Cargar pedido pasado</button></div></div><Table><TableHeader><TableRow><TableHead>Insumo</TableHead><TableHead>Último conteo</TableHead><TableHead>Consumo por semana</TableHead><TableHead>En camino</TableHead><TableHead>Sugerido</TableHead></TableRow></TableHeader><TableBody>{rows.map(r => <TableRow key={r.item.id}><TableCell><strong>{r.item.label}</strong><small className="cell-meta">{r.item.product} · bulto de {r.item.pack}</small></TableCell><TableCell>{r.last ? <>{r.last.quantity} {r.item.unit}<small className="cell-meta">{new Date(r.last.at).toLocaleDateString('es-AR')}{r.stale ? ' · vencido' : ''}</small></> : <span className="muted">Sin conteo</span>}</TableCell><TableCell>{r.avg.perDay === null ? <span className="muted">Faltan conteos</span> : <>{Math.round(r.avg.perDay * 7)} {r.item.unit}<small className="cell-meta">{r.avg.weeks} {r.avg.weeks === 1 ? 'semana' : 'semanas'}{r.avg.preliminary ? ' · preliminar' : ''}{r.avg.discarded ? ` · ${r.avg.discarded} descartada(s)` : ''}</small></>}</TableCell><TableCell>{r.incoming ? `${r.incoming} ${r.item.unit}` : '—'}</TableCell><TableCell>{r.qty === null ? <span className="muted">—</span> : <><strong>{r.qty / r.item.pack} {r.qty / r.item.pack === 1 ? 'bulto' : 'bultos'}</strong><small className="cell-meta">{r.qty} {r.item.unit}</small></>}</TableCell></TableRow>)}</TableBody></Table>{rows.every(r => r.qty === null) && <p className="chart-note">Para sugerir cantidades hacen falta al menos dos conteos del mismo insumo. Con un solo conteo no hay consumo medible, y no se arriesga un número.</p>}{rows.some(r => r.qty !== null && r.qty > 0) && <div className="inline-actions"><button className="secondary" onClick={exportCsv}><Download size={15}/> Exportar CSV para el proveedor</button></div>}{!!history.length && <details><summary>Pedidos anteriores ({history.length})</summary><Table><TableHeader><TableRow><TableHead>Fecha</TableHead><TableHead>Entrega</TableHead><TableHead>Estado</TableHead><TableHead>Detalle</TableHead></TableRow></TableHeader><TableBody>{history.map(o => <TableRow key={o.id}><TableCell>{String(o.payload.createdFor)}</TableCell><TableCell>{deliveryDate(o.payload, supplier.leadDays)}{o.payload.deliveredAt ? '' : ' (estimada)'}</TableCell><TableCell><span className={'badge ' + (o.payload.status === 'received' ? 'good' : 'warning')}>{o.payload.status === 'received' ? 'Recibido' : 'Borrador'}</span></TableCell><TableCell>{((o.payload.lines ?? []) as { sku: string; quantity: number }[]).map(l => `${supplier.items.find(i => i.id === l.sku)?.label ?? l.sku}: ${l.quantity}`).join(' · ')}</TableCell></TableRow>)}</TableBody></Table></details>}<Dialog open={!!sheet} onOpenChange={o => !o && setSheet(null)}><DialogContent className="tasty-dialog"><DialogHeader><DialogTitle>{sheet === 'count' ? 'Cargar conteo' : draft.status === 'received' ? 'Cargar pedido pasado' : 'Armar pedido'}</DialogTitle><DialogDescription>{sheet === 'count' ? `Los seis insumos de ${supplier.label} en ${names[chosen]}. Dejá en blanco lo que no se contó.` : `Cantidades en bultos. ${names[chosen]}.`}</DialogDescription></DialogHeader>{sheet === 'count' ? <form className="form-grid" onSubmit={saveCount}><Field label="Fecha y hora del conteo"><input required type="datetime-local" value={draft.countedAt || ''} onChange={e => field('countedAt', e.target.value)}/></Field>{supplier.items.map(i => <Field key={i.id} label={`${i.label} (${i.unit})`}><input type="number" min="0" step="1" placeholder="sin contar" value={draft[i.id] ?? ''} onChange={e => field(i.id, e.target.value)}/></Field>)}<button className="primary full" disabled={saving}>{saving ? 'Guardando…' : 'Guardar conteo'}</button></form> : <form className="form-grid" onSubmit={saveOrder}><Field label="Fecha del pedido"><input required type="date" value={draft.createdFor || ''} onChange={e => field('createdFor', e.target.value)}/></Field><Field label="Fecha de entrega (opcional)"><input type="date" value={draft.deliveredAt || ''} onChange={e => field('deliveredAt', e.target.value)}/></Field>{supplier.items.map(i => <Field key={i.id} label={`${i.label} · bulto de ${i.pack}`}><input type="number" min="0" step="1" placeholder="0" value={draft[i.id] ?? ''} onChange={e => field(i.id, e.target.value)}/></Field>)}<div className="full"><label className="check-line"><Checkbox checked={draft.status === 'received'} onCheckedChange={v => field('status', v ? 'received' : 'draft')}/> Ya entró la mercadería</label></div><button className="primary full" disabled={saving}>{saving ? 'Guardando…' : 'Guardar pedido'}</button></form>}</DialogContent></Dialog></section>;
+}
+
 export function Orders({ location, counts }: {
     location: string;
     counts: Count[];
@@ -109,7 +198,7 @@ export function Orders({ location, counts }: {
     finally {
         setSaving(false);
     } }
-    return <><div className="toolbar"><Choice label="Local para el pedido" value={chosen} onChange={setChosen} options={{ balbin: 'Balbín', peron: 'Perón' }}/><button className="primary" disabled={saving || !rows.some(r => r.qty !== null && r.qty > 0)} onClick={createOrder}><Download size={16}/> Guardar pedido</button></div><LoadError error={stock.error || supply.error}/><Note>El stock de las hojas antiguas no se usa porque figura como “STOCK MUNRO”. Registrá un conteo actual y completá proveedor, bulto y plazos para calcular cada pedido.</Note><label className="check-line"><Checkbox checked={confirmed} onCheckedChange={v => setConfirmed(v === true)}/>Confirmo que los valores de «Conteo» son consumos diarios.</label><section className="panel"><div className="panel-heading"><div><h2>Propuesta de compra · {names[chosen]}</h2><p>Consumos de las últimas 8 semanas, comparando el mismo día de la semana.</p></div></div><Table><TableHeader><TableRow><TableHead>Insumo</TableHead><TableHead>Promedio diario</TableHead><TableHead>Stock actual</TableHead><TableHead>Proveedor</TableHead><TableHead>Pedido sugerido</TableHead><TableHead>Completar</TableHead></TableRow></TableHeader><TableBody>{rows.map(r => <TableRow key={r.id}><TableCell><strong>{r.label}</strong><small className="cell-meta">{r.unit} · {r.fc.observations}/56 días válidos</small></TableCell><TableCell>{number(r.fc.mean)}<small className="cell-meta">Último: {r.fc.last || 'sin datos'}</small></TableCell><TableCell>{r.stockFresh ? number(Number(r.st!.payload.quantity)) : 'Sin conteo vigente'}</TableCell><TableCell>{String(r.sp?.payload.supplier || 'Sin configurar')}</TableCell><TableCell><strong>{r.qty === null ? 'Pendiente' : `${number(r.qty)} ${r.unit}`}</strong><small className="cell-meta">{!r.fc.reliable ? 'Historial insuficiente o desactualizado' : !confirmed ? 'Confirmar significado de Conteo' : !r.stockFresh ? 'Cargar stock de las últimas 24 h' : !r.sp ? 'Configurar proveedor' : `${r.sp.payload.leadDays} días de entrega + ${r.sp.payload.cycleDays} entre pedidos`}</small></TableCell><TableCell><div className="row-actions"><button onClick={() => open('stock', r.id)}>Stock</button><button onClick={() => open('supply', r.id)}>Proveedor</button></div></TableCell></TableRow>)}</TableBody></Table></section><details className="method"><summary>Cómo se calcula y cuándo se frena una sugerencia</summary><p>Pedido = demanda de los días de entrega y del intervalo entre pedidos, más el porcentaje de seguridad, menos stock e ingresos ya confirmados; se redondea hacia arriba al bulto del proveedor. El stock debe tener menos de 24 horas. Se exigen al menos 70% de días registrados en 8 semanas, dos observaciones por día de semana proyectado y consumo actualizado en los últimos 4 días. Faltantes, fechas duplicadas, «?» y turnos parciales no se consideran cero. Es una estimación: ajustá por promociones, feriados y vencimientos.</p></details><section className="panel"><div className="panel-heading"><h2>Pedidos guardados</h2></div>{orders.records.filter(r => r.payload.location === chosen).length ? <Table><TableHeader><TableRow><TableHead>Fecha</TableHead><TableHead>Estado</TableHead><TableHead>Detalle</TableHead></TableRow></TableHeader><TableBody>{orders.records.filter(r => r.payload.location === chosen).map(r => <TableRow key={r.id}><TableCell>{String(r.payload.createdFor)}</TableCell><TableCell>Borrador</TableCell><TableCell>{(r.payload.lines as {
+    return <><div className="toolbar"><Choice label="Local para el pedido" value={chosen} onChange={setChosen} options={{ balbin: 'Balbín', peron: 'Perón' }}/><button className="primary" disabled={saving || !rows.some(r => r.qty !== null && r.qty > 0)} onClick={createOrder}><Download size={16}/> Guardar pedido</button></div><LoadError error={stock.error || supply.error}/>{suppliers.map(s => <SupplierSection key={s.id} supplier={s} chosen={chosen} stock={stock} orders={orders}/>)}<div className="panel-heading"><div><h2>Insumos de las planillas</h2><p>Pan, papas y carnes · el consumo se lee de la hoja «Conteo»</p></div></div><Note>El stock de las hojas antiguas no se usa porque figura como “STOCK MUNRO”. Registrá un conteo actual y completá proveedor, bulto y plazos para calcular cada pedido.</Note><label className="check-line"><Checkbox checked={confirmed} onCheckedChange={v => setConfirmed(v === true)}/>Confirmo que los valores de «Conteo» son consumos diarios.</label><section className="panel"><div className="panel-heading"><div><h2>Propuesta de compra · {names[chosen]}</h2><p>Consumos de las últimas 8 semanas, comparando el mismo día de la semana.</p></div></div><Table><TableHeader><TableRow><TableHead>Insumo</TableHead><TableHead>Promedio diario</TableHead><TableHead>Stock actual</TableHead><TableHead>Proveedor</TableHead><TableHead>Pedido sugerido</TableHead><TableHead>Completar</TableHead></TableRow></TableHeader><TableBody>{rows.map(r => <TableRow key={r.id}><TableCell><strong>{r.label}</strong><small className="cell-meta">{r.unit} · {r.fc.observations}/56 días válidos</small></TableCell><TableCell>{number(r.fc.mean)}<small className="cell-meta">Último: {r.fc.last || 'sin datos'}</small></TableCell><TableCell>{r.stockFresh ? number(Number(r.st!.payload.quantity)) : 'Sin conteo vigente'}</TableCell><TableCell>{String(r.sp?.payload.supplier || 'Sin configurar')}</TableCell><TableCell><strong>{r.qty === null ? 'Pendiente' : `${number(r.qty)} ${r.unit}`}</strong><small className="cell-meta">{!r.fc.reliable ? 'Historial insuficiente o desactualizado' : !confirmed ? 'Confirmar significado de Conteo' : !r.stockFresh ? 'Cargar stock de las últimas 24 h' : !r.sp ? 'Configurar proveedor' : `${r.sp.payload.leadDays} días de entrega + ${r.sp.payload.cycleDays} entre pedidos`}</small></TableCell><TableCell><div className="row-actions"><button onClick={() => open('stock', r.id)}>Stock</button><button onClick={() => open('supply', r.id)}>Proveedor</button></div></TableCell></TableRow>)}</TableBody></Table></section><details className="method"><summary>Cómo se calcula y cuándo se frena una sugerencia</summary><p>Pedido = demanda de los días de entrega y del intervalo entre pedidos, más el porcentaje de seguridad, menos stock e ingresos ya confirmados; se redondea hacia arriba al bulto del proveedor. El stock debe tener menos de 24 horas. Se exigen al menos 70% de días registrados en 8 semanas, dos observaciones por día de semana proyectado y consumo actualizado en los últimos 4 días. Faltantes, fechas duplicadas, «?» y turnos parciales no se consideran cero. Es una estimación: ajustá por promociones, feriados y vencimientos.</p></details><section className="panel"><div className="panel-heading"><h2>Pedidos guardados</h2></div>{orders.records.filter(r => r.payload.location === chosen).length ? <Table><TableHeader><TableRow><TableHead>Fecha</TableHead><TableHead>Estado</TableHead><TableHead>Detalle</TableHead></TableRow></TableHeader><TableBody>{orders.records.filter(r => r.payload.location === chosen).map(r => <TableRow key={r.id}><TableCell>{String(r.payload.createdFor)}</TableCell><TableCell>Borrador</TableCell><TableCell>{(r.payload.lines as {
         sku: string;
         quantity: number;
     }[]).map(l => `${skus.find(s => s.id === l.sku)?.label}: ${l.quantity}`).join(' · ')}</TableCell></TableRow>)}</TableBody></Table> : <Empty title="Todavía no hay pedidos guardados" text="Las sugerencias se guardan como borrador. El envío al proveedor queda a cargo del equipo."/>}</section><Dialog open={!!form} onOpenChange={o => !o && setForm(null)}><DialogContent className="tasty-dialog"><DialogHeader><DialogTitle>{form?.kind === 'stock' ? 'Registrar stock' : 'Configurar proveedor'} · {skus.find(s => s.id === form?.sku)?.label}</DialogTitle><DialogDescription>{names[chosen]} · Completá los valores reales.</DialogDescription></DialogHeader><form onSubmit={submit} className="form-grid">{form?.kind === 'stock' ? <><Field label="Cantidad disponible"><input required type="number" min="0" step="any" value={draft.quantity} onChange={e => setDraft({ ...draft, quantity: e.target.value })}/></Field><Field label="Momento del conteo (hora local)"><input required type="datetime-local" value={draft.countedAt} onChange={e => setDraft({ ...draft, countedAt: e.target.value })}/></Field><Field label="Observaciones"><input value={draft.notes} onChange={e => setDraft({ ...draft, notes: e.target.value })}/></Field></> : <>{[['supplier', 'Proveedor'], ['pack', 'Unidades por bulto'], ['leadDays', 'Días hasta la entrega'], ['cycleDays', 'Días entre pedidos'], ['safetyPct', 'Colchón de seguridad (%)'], ['incoming', 'Unidades ya pedidas por recibir']].map(([k, l]) => <Field key={k} label={l}><input required type={k === 'supplier' ? 'text' : 'number'} min={k === 'pack' || k === 'cycleDays' ? 1 : 0} step="any" value={draft[k]} onChange={e => setDraft({ ...draft, [k]: e.target.value })}/></Field>)}</>}<button className="primary full" disabled={saving}>{saving ? 'Guardando…' : 'Guardar'}</button></form></DialogContent></Dialog></>;

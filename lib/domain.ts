@@ -1,8 +1,41 @@
 import { z } from 'zod';
 export const locationSchema = z.enum(['balbin', 'peron']);
-export const skuSchema = z.enum(['pan', 'papas', 'carne80', 'carne55']);
+export const skuSchema = z.enum(['pan', 'papas', 'carne80', 'carne55', 'te-estuche', 'te-bolsa', 'te-balde', 'te-servilleta', 'te-pileta', 'te-parafinado']);
 export const skus = [{ id: 'pan', label: 'Pan de hamburguesa', unit: 'unidades' }, { id: 'papas', label: 'Papas', unit: 'bolsas' }, { id: 'carne80', label: 'Carne de 80 g', unit: 'unidades' }, { id: 'carne55', label: 'Carne de 55 g', unit: 'unidades' }] as const;
 export type Sku = typeof skus[number]['id'];
+
+/**
+ * Catálogo por proveedor.
+ *
+ * Estos insumos no están en la hoja «Conteo»: los cuentan los encargados. Por
+ * eso su consumo no se lee de las planillas, se deduce de los propios conteos
+ * semanales (ver `consumptionSegments`).
+ *
+ * Bultos y códigos salen de la planilla de pedido del proveedor. Los productos
+ * genéricos de esa planilla quedan afuera a propósito: nunca se pidieron, y
+ * listarlos sólo agregaría ruido a la pantalla de pedido.
+ *
+ * `leadDays` y `cycleDays` describen el ciclo real: el pedido se arma el jueves
+ * junto con el conteo y la entrega llega el martes siguiente.
+ */
+export const suppliers = [{
+    id: 'todo-envase',
+    label: 'Todo Envase',
+    orderWeekday: 4,
+    leadDays: 5,
+    cycleDays: 7,
+    items: [
+        { id: 'te-estuche', label: 'Estuches', product: 'SOBRE DE PAPAS CHICO MR TASTY', code: 'BOP PAC MRT BIO', pack: 1000, unit: 'unidades' },
+        { id: 'te-bolsa', label: 'Bolsas grandes', product: 'BOLSA DELIVERY MR TASTY', code: 'BOP FCG MRT F9', pack: 400, unit: 'unidades' },
+        { id: 'te-balde', label: 'Baldes', product: 'BALDE HAMBURGUESA MR TASTY', code: 'POL 15O MRT', pack: 200, unit: 'unidades' },
+        { id: 'te-servilleta', label: 'Servilletas', product: 'SERVILLETA 33X33 ECOLOGICA MR TASTY 1,9 KG', code: 'SER 333 MRT TEC', pack: 1, unit: 'cajas' },
+        { id: 'te-pileta', label: 'Piletas', product: 'ENSALADERA POLIPAPEL MR TASTY', code: 'POL ENS MRT', pack: 200, unit: 'unidades' },
+        { id: 'te-parafinado', label: 'Papel parafinado', product: 'PAPEL PARAFINADO 30X40 MR TASTY', code: 'PAP 304 MRT', pack: 1000, unit: 'unidades' },
+    ],
+}] as const;
+export type Supplier = typeof suppliers[number];
+export type SupplierItem = Supplier['items'][number];
+export const supplierItems = suppliers.flatMap(s => s.items.map(i => ({ ...i, supplier: s.label, supplierId: s.id })));
 export const categories = ['Mercadería', 'Sueldos', 'Gastos del local', 'Impuestos y comisiones', 'Mantenimiento'] as const;
 export const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(s => { const d = new Date(s + 'T12:00:00Z'); return !isNaN(+d) && d.toISOString().slice(0, 10) === s; }, 'Fecha inválida');
 const amount = z.number().finite().min(0).max(1e12);
@@ -11,7 +44,10 @@ export const schemas = {
     candidate: z.object({ name: z.string().trim().min(1).max(180), email: z.string().email().max(200).or(z.literal('')), phone: z.string().max(40), location: z.enum(['balbin', 'peron', 'both']), role: z.string().max(80), availability: z.string().max(120), experience: z.string().max(3000), notes: z.string().max(3000), stage: z.enum(['Nuevo', 'A revisar', 'Entrevista', 'Seleccionado', 'Archivado']), fileId: z.string().max(100).optional(), gmailId: z.string().max(100).optional() }),
     stock: z.object({ location: locationSchema, sku: skuSchema, quantity: amount, countedAt: z.string().datetime().refine(s => Date.parse(s) <= Date.now() + 300000, 'El conteo no puede ser futuro'), notes: z.string().max(500).default('') }),
     supply: z.object({ location: locationSchema, sku: skuSchema, supplier: z.string().trim().min(1).max(160), pack: z.number().int().min(1).max(10000), leadDays: z.number().int().min(0).max(14), cycleDays: z.number().int().min(1).max(14), safetyPct: z.number().min(0).max(100), incoming: amount, confirmed: z.literal(true) }),
-    order: z.object({ location: locationSchema, lines: z.array(z.object({ sku: skuSchema, supplier: z.string().min(1), quantity: amount.positive(), unit: z.string(), pack: z.number().positive() })).min(1).max(20), status: z.literal('draft'), createdFor: isoDate }),
+    // `deliveredAt` cierra el círculo del consumo: sin la fecha en que entró la
+    // mercadería no se puede saber cuánto se usó entre dos conteos. Si falta, la
+    // pantalla la estima sumando el plazo de entrega del proveedor.
+    order: z.object({ location: locationSchema, lines: z.array(z.object({ sku: skuSchema, supplier: z.string().min(1), quantity: amount.positive(), unit: z.string(), pack: z.number().positive() })).min(1).max(20), status: z.enum(['draft', 'received']), createdFor: isoDate, deliveredAt: isoDate.optional() }),
     sale: z.object({ location: locationSchema, date: isoDate, periodMode: z.enum(['monthly', 'daily']).default('monthly'), channel: z.enum(['Cta Cte / Efectivo', 'Pedidos YA Tarjeta', 'Pedidos YA Efectivo', 'Mercado Pago']), amount: amount, fileId: z.string().max(100).optional(), notes: z.string().max(1000).default('') }),
     expense: z.object({ location: locationSchema, date: isoDate, category: z.enum(categories), description: z.string().trim().min(1).max(180), amount: amount.positive(), notes: z.string().max(1000).default('') }),
 } as const;
@@ -54,6 +90,53 @@ export function forecast(counts: Count[], location: string, sku: Sku, days: numb
     const demand = reliable ? forecastDays.reduce((a, d) => a + (d.mean || 0), 0) : null;
     return { mean: unique.length ? unique.reduce((a, r) => a + r[sku]!, 0) / unique.length : null, days: forecastDays, weekday, observations: unique.length, coverage, last, demand, reliable };
 }
+export type StockPoint = { at: string; quantity: number };
+export type DeliveryPoint = { at: string; quantity: number };
+export type ConsumptionSegment = { from: string; to: string; days: number; received: number; used: number; perDay: number; valid: boolean };
+
+/**
+ * Consumo entre conteos consecutivos.
+ *
+ * De un conteo al siguiente: lo que había, más lo que entró, menos lo que
+ * quedó. Es la única forma de medir el consumo de estos insumos, que no pasan
+ * por la hoja «Conteo».
+ *
+ * Un tramo con consumo negativo significa que apareció stock sin entrega que
+ * lo explique: un conteo mal cargado o una entrega sin registrar. Se marca
+ * inválido y se excluye del promedio en vez de recortarlo a cero, que
+ * ensuciaría la media y con ella la sugerencia.
+ */
+export function consumptionSegments(stock: StockPoint[], deliveries: DeliveryPoint[]): ConsumptionSegment[] {
+    const points = [...stock].sort((a, b) => a.at.localeCompare(b.at));
+    const segments: ConsumptionSegment[] = [];
+    for (let i = 1; i < points.length; i++) {
+        const from = points[i - 1], to = points[i];
+        const days = Math.round((Date.parse(to.at) - Date.parse(from.at)) / 864e5);
+        if (days <= 0)
+            continue;
+        const received = deliveries.filter(d => d.at > from.at && d.at <= to.at).reduce((a, d) => a + d.quantity, 0);
+        const used = from.quantity + received - to.quantity;
+        segments.push({ from: from.at, to: to.at, days, received, used, perDay: used / days, valid: used >= 0 });
+    }
+    return segments;
+}
+
+/**
+ * Uso medio diario sobre los tramos válidos.
+ *
+ * Pondera por días y no por tramo: dos conteos separados por dos semanas pesan
+ * el doble que uno de una semana, que es lo correcto si algún jueves se saltea.
+ *
+ * `preliminary` avisa que la media todavía se apoya en pocas semanas. No se
+ * oculta la sugerencia por eso, pero la pantalla lo dice.
+ */
+export function averageDailyUse(segments: ConsumptionSegment[]) {
+    const valid = segments.filter(s => s.valid);
+    const days = valid.reduce((a, s) => a + s.days, 0);
+    const used = valid.reduce((a, s) => a + s.used, 0);
+    return { perDay: days ? used / days : null, weeks: valid.length, days, discarded: segments.length - valid.length, preliminary: valid.length < 3 };
+}
+
 export function suggestOrder(demand: number | null, stock: number | null, incoming: number, pack: number, safetyPct: number) { if (demand === null || stock === null)
     return null; return Math.ceil(Math.max(0, demand * (1 + safetyPct / 100) - stock - incoming) / pack) * pack; }
 export function invoiceDedupe(p: Record<string, unknown>) { return `${p.cuit}:${p.documentType}:${String(p.number).replace(/\D/g, '').padStart(13, '0')}`; }
