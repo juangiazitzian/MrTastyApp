@@ -499,3 +499,82 @@
   .connections-grid { gap: 13px; }
   .empty-state { padding: 40px 18px; }
 }
+
+/* -------------------------------------------------------------------------
+   TARJETAS DE PROVEEDOR
+   Una por proveedor en Pedidos y stock. La cabecera dice de quién es, cuándo
+   se le pide y cuánto falta para el próximo pedido.
+   ------------------------------------------------------------------------- */
+
+.supplier-card { margin-bottom: 18px; }
+
+.supplier-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+
+.supplier-title { display: flex; align-items: center; gap: 13px; min-width: 0; }
+
+.supplier-icon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border-radius: var(--radius-sm);
+  background: var(--primary-soft);
+  color: var(--primary-ink);
+}
+
+.supplier-title h2 { margin: 0; font-size: 17px; }
+
+.supplier-title p {
+  margin: 2px 0 0;
+  font-size: 12.5px;
+  color: var(--muted-foreground);
+}
+
+.supplier-actions { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+
+.supplier-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+
+/* La cantidad a pedir es el dato que se busca de un vistazo. */
+.order-qty { color: var(--primary-ink); }
+
+/* Los insumos de las planillas quedan plegados: son los de menos uso diario. */
+.legacy-block {
+  margin-top: 10px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border);
+}
+
+.legacy-block > summary {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 0;
+  cursor: pointer;
+  list-style: none;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--muted-foreground);
+}
+
+.legacy-block > summary::-webkit-details-marker { display: none; }
+.legacy-block > summary:hover { color: var(--foreground); }
+
+@media (max-width: 720px) {
+  .supplier-head { flex-direction: column; align-items: stretch; }
+  .supplier-actions { justify-content: flex-start; }
+}

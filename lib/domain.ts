@@ -18,10 +18,21 @@ export type Sku = typeof skus[number]['id'];
  * `leadDays` y `cycleDays` describen el ciclo real: el pedido se arma el jueves
  * junto con el conteo y la entrega llega el martes siguiente.
  */
-export const suppliers = [{
+export type SupplierItem = { id: string; label: string; product: string; code: string; pack: number; unit: string };
+export type Supplier = {
+    id: string;
+    label: string;
+    /** Días de la semana en que se pide, como los numera `getUTCDay` (0 = domingo). */
+    orderDays: number[];
+    /** Días hasta la entrega y días entre pedidos. `null` mientras no estén confirmados. */
+    leadDays: number | null;
+    cycleDays: number | null;
+    items: SupplierItem[];
+};
+export const suppliers: Supplier[] = [{
     id: 'todo-envase',
     label: 'Todo Envase',
-    orderWeekday: 4,
+    orderDays: [4],
     leadDays: 5,
     cycleDays: 7,
     items: [
@@ -32,10 +43,74 @@ export const suppliers = [{
         { id: 'te-pileta', label: 'Piletas', product: 'ENSALADERA POLIPAPEL MR TASTY', code: 'POL ENS MRT', pack: 200, unit: 'unidades' },
         { id: 'te-parafinado', label: 'Papel parafinado', product: 'PAPEL PARAFINADO 30X40 MR TASTY', code: 'PAP 304 MRT', pack: 1000, unit: 'unidades' },
     ],
-}] as const;
-export type Supplier = typeof suppliers[number];
-export type SupplierItem = Supplier['items'][number];
+}, {
+    // Estos dos proveedores todavía no tienen catálogo cargado. Se listan por su
+    // calendario, que es lo único confirmado: sirve para avisar cuándo toca
+    // pedir. Sin insumos, bulto ni plazo de entrega no se sugiere nada.
+    id: 'cdp',
+    label: 'CDP',
+    orderDays: [1, 3, 5],
+    leadDays: null,
+    cycleDays: null,
+    items: [],
+}, {
+    id: 'blancaluna',
+    label: 'Blancaluna',
+    orderDays: [1, 3, 5],
+    leadDays: null,
+    cycleDays: null,
+    items: [],
+}];
 export const supplierItems = suppliers.flatMap(s => s.items.map(i => ({ ...i, supplier: s.label, supplierId: s.id })));
+export type ConfiguredSupplier = Supplier & { leadDays: number; cycleDays: number };
+
+/** Un proveedor sólo calcula pedidos si tiene catálogo, bulto y plazos cargados. */
+export function isConfigured(s: Supplier): s is ConfiguredSupplier {
+    return s.items.length > 0 && s.leadDays !== null && s.cycleDays !== null;
+}
+
+export const weekdayNames = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+
+/** «Se pide lunes, miércoles y viernes». */
+export function weekdaysLabel(days: number[]) {
+    const n = days.map(d => weekdayNames[d]);
+    return n.length > 1 ? n.slice(0, -1).join(', ') + ' y ' + n[n.length - 1] : n[0] ?? '';
+}
+
+/**
+ * Cuándo toca el próximo pedido, listo para mostrar.
+ *
+ * `tone` describe la urgencia y cada pantalla decide cómo pintarla.
+ */
+export function nextOrderLabel(orderDays: number[], from = todayAR()) {
+    const next = nextOrderDate(orderDays, from);
+    if (!next)
+        return null;
+    if (next.days === 0)
+        return { ...next, text: 'Se pide hoy', tone: 'today' as const };
+    if (next.days === 1)
+        return { ...next, text: 'Se pide mañana', tone: 'tomorrow' as const };
+    const d = new Date(next.date + 'T12:00:00Z');
+    return { ...next, text: `${weekdayNames[d.getUTCDay()]} ${d.getUTCDate()}/${d.getUTCMonth() + 1}`, tone: 'later' as const };
+}
+
+/**
+ * Próxima fecha de pedido de un proveedor, contando desde hoy inclusive.
+ *
+ * `days` en cero significa que hoy es día de pedido. Devuelve null si el
+ * proveedor no tiene calendario cargado.
+ */
+export function nextOrderDate(orderDays: number[], from = todayAR()) {
+    if (!orderDays.length)
+        return null;
+    const base = Date.parse(from + 'T12:00:00Z');
+    for (let i = 0; i < 14; i++) {
+        const d = new Date(base + i * 864e5);
+        if (orderDays.includes(d.getUTCDay()))
+            return { date: d.toISOString().slice(0, 10), days: i };
+    }
+    return null;
+}
 export const categories = ['Mercadería', 'Sueldos', 'Gastos del local', 'Impuestos y comisiones', 'Mantenimiento'] as const;
 export const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(s => { const d = new Date(s + 'T12:00:00Z'); return !isNaN(+d) && d.toISOString().slice(0, 10) === s; }, 'Fecha inválida');
 const amount = z.number().finite().min(0).max(1e12);

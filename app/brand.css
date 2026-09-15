@@ -865,3 +865,117 @@
   .filters { width: 100%; }
   .filters > * { flex: 1; min-width: 0; }
 }
+
+/* -------------------------------------------------------------------------
+   FRANJA DE ESTADO
+   Hora del local y qué proveedor toca pedir. Queda pegada bajo la cabecera.
+   ------------------------------------------------------------------------- */
+
+.status-bar {
+  position: sticky;
+  top: 68px;
+  z-index: 19;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  flex-wrap: wrap;
+  padding: 10px 30px;
+  background: color-mix(in srgb, var(--surface-sunken) 72%, transparent);
+  backdrop-filter: blur(12px) saturate(1.4);
+  -webkit-backdrop-filter: blur(12px) saturate(1.4);
+  border-bottom: 1px solid var(--border);
+}
+
+.status-clock { display: flex; align-items: center; gap: 11px; min-width: 0; }
+.status-clock > div { display: flex; flex-direction: column; line-height: 1.25; }
+
+.status-clock strong {
+  font-size: 17px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+  color: var(--foreground);
+}
+
+.status-clock small {
+  font-size: 11.5px;
+  color: var(--muted-foreground);
+}
+
+/* Intl devuelve «martes, 15 de septiembre»: sólo sube la primera letra.
+   `capitalize` pondría mayúscula también en «De». */
+.status-clock small::first-letter { text-transform: uppercase; }
+
+.status-pulse {
+  width: 9px;
+  height: 9px;
+  flex-shrink: 0;
+  border-radius: var(--radius-pill);
+  background: var(--subtle-foreground);
+}
+
+.status-pulse.active {
+  background: var(--primary);
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--primary) 55%, transparent);
+  animation: status-ping 2.2s ease-out infinite;
+}
+
+@keyframes status-ping {
+  70%  { box-shadow: 0 0 0 9px transparent; }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .status-pulse.active { animation: none; }
+}
+
+.status-alerts { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+.status-headline {
+  margin-right: 4px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--primary-ink);
+}
+
+.status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 11px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--card);
+  font-size: 11.5px;
+  color: var(--muted-foreground);
+  white-space: nowrap;
+}
+
+.status-chip em { font-style: normal; font-weight: 650; color: var(--foreground); }
+
+.status-chip.due-today {
+  border-color: var(--primary-soft-border);
+  background: var(--primary-soft);
+  color: var(--primary-soft-fg);
+}
+
+.status-chip.due-today em { color: var(--primary-ink); }
+
+.status-chip.warning {
+  border-color: color-mix(in srgb, var(--warn-500) 35%, transparent);
+  background: var(--warn-bg);
+  color: var(--warn-fg);
+}
+
+.status-chip.warning em { color: var(--warn-fg); }
+
+/* Tonos de insignia para el calendario de pedidos. */
+.badge.due-today { background: var(--primary-soft); color: var(--primary-ink); }
+.badge.neutral   { background: var(--muted);        color: var(--muted-foreground); }
+
+@media (max-width: 900px) {
+  .status-bar { top: 60px; padding: 9px 16px; gap: 10px; }
+  .status-headline { display: none; }
+}
