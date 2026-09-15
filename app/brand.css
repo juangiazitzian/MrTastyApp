@@ -192,7 +192,7 @@
   gap: 16px;
   height: 68px;
   padding: 0 30px;
-  background: color-mix(in srgb, var(--background) 99%, transparent);
+  background: color-mix(in srgb, var(--background) 90%, transparent);
   /* El prefijo va primero: el compilador deduplica y conserva la última
      declaración, así que invertirlas dejaba sólo la -webkit- y Chromium
      terminaba sin blur. */
@@ -874,30 +874,20 @@
    Hora del local y qué proveedor toca pedir. Queda pegada bajo la cabecera.
    ------------------------------------------------------------------------- */
 
-.status-bar {
-  position: sticky;
-  top: 68px;
-  z-index: 19;
+.status-strip {
+  flex: 1 1 auto;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 18px;
-  flex-wrap: wrap;
-  padding: 10px 30px;
-  background: color-mix(in srgb, var(--surface-sunken) 99%, transparent);
-  /* El prefijo va primero: el compilador deduplica y conserva la última
-     declaración, así que invertirlas dejaba sólo la -webkit- y Chromium
-     terminaba sin blur. */
-  -webkit-backdrop-filter: blur(26px) saturate(1.8);
-  backdrop-filter: blur(26px) saturate(1.8);
-  border-bottom: 1px solid var(--border);
+  justify-content: flex-end;
+  gap: 16px;
+  min-width: 0;
 }
 
 .status-clock { display: flex; align-items: center; gap: 11px; min-width: 0; }
 .status-clock > div { display: flex; flex-direction: column; line-height: 1.25; }
 
 .status-clock strong {
-  font-size: 17px;
+  font-size: 15px;
   font-weight: 650;
   letter-spacing: 0.02em;
   font-variant-numeric: tabular-nums;
@@ -939,13 +929,6 @@
 
 .status-alerts { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 
-.status-headline {
-  margin-right: 4px;
-  font-size: 12.5px;
-  font-weight: 600;
-  color: var(--primary-ink);
-}
-
 .status-chip {
   display: inline-flex;
   align-items: center;
@@ -981,7 +964,9 @@
 .badge.due-today { background: var(--primary-soft); color: var(--primary-ink); }
 .badge.neutral   { background: var(--muted);        color: var(--muted-foreground); }
 
-@media (max-width: 900px) {
-  .status-bar { top: 60px; padding: 9px 16px; gap: 10px; }
-  .status-headline { display: none; }
-}
+/* A medida que falta ancho se van cayendo los datos menos urgentes:
+   primero la fecha y los proveedores lejanos, y al final queda sólo lo de hoy. */
+@media (max-width: 1240px) { .status-chip.neutral { display: none; } }
+@media (max-width: 1040px) { .status-clock small { display: none; } }
+@media (max-width: 860px)  { .status-chip.warning { display: none; } }
+@media (max-width: 680px)  { .status-strip { display: none; } }

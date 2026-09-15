@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState, FormEvent, ReactNode } from 'react';
-import { Plus, Upload, RefreshCw, FileText, Search, Download, Check, ExternalLink, Package, AlertCircle, Mail, Link2 } from 'lucide-react';
+import { Plus, Upload, RefreshCw, FileText, Search, Download, Check, ExternalLink, Package, AlertCircle, Mail, Link2, Beef } from 'lucide-react';
+import { Bucket, Fries } from './supply-icons';
 import { toast } from 'sonner';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
@@ -85,6 +86,9 @@ function localInput(d = new Date()) { return new Date(d.getTime() - d.getTimezon
 /** Clase de la insignia según la urgencia del próximo pedido. */
 const TONE_CLASS: Record<string, string> = { today: 'due-today', tomorrow: 'warning', later: 'neutral' };
 
+/** Cada proveedor se reconoce por lo que provee, no por una caja genérica. */
+const SUPPLIER_ICON: Record<string, (p: { size?: number }) => ReactNode> = { 'todo-envase': Bucket, cdp: Beef, blancaluna: Fries };
+
 /** «1 caja» y no «1 cajas»: las unidades del catálogo se guardan en plural. */
 const SINGULAR: Record<string, string> = { unidades: 'unidad', cajas: 'caja', bolsas: 'bolsa' };
 function units(n: number, unit: string) { return `${n.toLocaleString('es-AR')} ${n === 1 ? SINGULAR[unit] ?? unit : unit}`; }
@@ -94,7 +98,8 @@ function SupplierHead({ supplier, children }: {
     children?: ReactNode;
 }) {
     const next = nextOrderLabel(supplier.orderDays, todayAR());
-    return <div className="supplier-head"><div className="supplier-title"><span className="supplier-icon"><Package size={19}/></span><div><h2>{supplier.label}</h2><p>Se pide {weekdaysLabel(supplier.orderDays)}</p></div></div><div className="supplier-actions">{next && <span className={'badge ' + TONE_CLASS[next.tone]}>{next.text}</span>}{children}</div></div>;
+    const Icon = SUPPLIER_ICON[supplier.id] ?? Package;
+    return <div className="supplier-head"><div className="supplier-title"><span className="supplier-icon"><Icon size={21}/></span><div><h2>{supplier.label}</h2><p>Se pide {weekdaysLabel(supplier.orderDays)}</p></div></div><div className="supplier-actions">{next && <span className={'badge ' + TONE_CLASS[next.tone]}>{next.text}</span>}{children}</div></div>;
 }
 
 /**
@@ -107,7 +112,7 @@ function SupplierHead({ supplier, children }: {
 function PendingSupplier({ supplier }: {
     supplier: Supplier;
 }) {
-    return <section className="panel supplier-card"><SupplierHead supplier={supplier}/><p className="chart-note">Falta cargar el catálogo: insumos, bulto y plazo de entrega. Hasta entonces la app avisa cuándo toca pedir, pero no calcula cantidades.</p></section>;
+    return <section className="panel supplier-card"><SupplierHead supplier={supplier}/><p className="supplier-pending">Falta cargar el catálogo: insumos, bulto y plazo de entrega. Hasta entonces la app avisa cuándo toca pedir, pero no calcula cantidades.</p></section>;
 }
 
 /**

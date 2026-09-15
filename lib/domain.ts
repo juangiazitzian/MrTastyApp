@@ -87,11 +87,13 @@ export function nextOrderLabel(orderDays: number[], from = todayAR()) {
     if (!next)
         return null;
     if (next.days === 0)
-        return { ...next, text: 'Se pide hoy', tone: 'today' as const };
+        return { ...next, text: 'Se pide hoy', short: 'hoy', tone: 'today' as const };
     if (next.days === 1)
-        return { ...next, text: 'Se pide mañana', tone: 'tomorrow' as const };
+        return { ...next, text: 'Se pide mañana', short: 'mañana', tone: 'tomorrow' as const };
     const d = new Date(next.date + 'T12:00:00Z');
-    return { ...next, text: `${weekdayNames[d.getUTCDay()]} ${d.getUTCDate()}/${d.getUTCMonth() + 1}`, tone: 'later' as const };
+    const fecha = `${d.getUTCDate()}/${d.getUTCMonth() + 1}`;
+    // La franja comparte fila con el resto de la cabecera: ahí va la forma corta.
+    return { ...next, text: `${weekdayNames[d.getUTCDay()]} ${fecha}`, short: `${weekdayNames[d.getUTCDay()].slice(0, 3)} ${fecha}`, tone: 'later' as const };
 }
 
 /**

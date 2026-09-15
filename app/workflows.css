@@ -506,15 +506,16 @@
    se le pide y cuánto falta para el próximo pedido.
    ------------------------------------------------------------------------- */
 
-.supplier-card { margin-bottom: 18px; }
+.supplier-card { margin-bottom: 20px; }
 
 .supplier-head {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 16px;
   flex-wrap: wrap;
-  margin-bottom: 18px;
+  /* El panel no trae padding propio: lo pone cada bloque. */
+  padding: 22px 24px 18px;
 }
 
 .supplier-title { display: flex; align-items: center; gap: 13px; min-width: 0; }
@@ -522,20 +523,32 @@
 .supplier-icon {
   display: grid;
   place-items: center;
-  width: 40px;
-  height: 40px;
+  width: 42px;
+  height: 42px;
   flex-shrink: 0;
   border-radius: var(--radius-sm);
   background: var(--primary-soft);
   color: var(--primary-ink);
 }
 
-.supplier-title h2 { margin: 0; font-size: 17px; }
+.supplier-title h2 { margin: 0; font-size: 17px; line-height: 1.3; }
 
 .supplier-title p {
-  margin: 2px 0 0;
+  margin: 4px 0 0;
   font-size: 12.5px;
+  line-height: 1.5;
   color: var(--muted-foreground);
+}
+
+/* Aviso del proveedor sin catálogo: necesita su propio margen porque no va
+   seguido de una tabla que lo separe del borde. */
+.supplier-pending {
+  margin: 0;
+  padding: 4px 24px 24px;
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--muted-foreground);
+  max-width: 70ch;
 }
 
 .supplier-actions { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
@@ -546,7 +559,7 @@
   justify-content: space-between;
   gap: 12px;
   flex-wrap: wrap;
-  margin-top: 14px;
+  padding: 16px 24px 20px;
 }
 
 /* La cantidad a pedir es el dato que se busca de un vistazo. */
@@ -578,3 +591,7 @@
   .supplier-head { flex-direction: column; align-items: stretch; }
   .supplier-actions { justify-content: flex-start; }
 }
+
+/* Las notas sueltas dentro de una tarjeta de proveedor no las separa ninguna
+   tabla del borde del panel. */
+.supplier-card .chart-note { margin: 0; padding: 14px 24px 0; }
